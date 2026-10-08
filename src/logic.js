@@ -115,9 +115,12 @@
 '</div>' +
 '<p class="sec">NỘI DUNG CUỘC HỌP</p>' + rows +
 '<p style="margin:14pt 0 0;text-align:justify">Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất thông qua.</p>' +
-'<table style="width:100%;margin-top:24pt;border:none"><tr>' +
-'<td style="width:50%;text-align:center;border:none"><b>THƯ KÝ</b><br><span style="font-style:italic;font-size:11pt">(Ký, ghi rõ họ tên)</span><br><br><br><br>' + esc(meta.sec) + '</td>' +
-'<td style="width:50%;text-align:center;border:none"><b>CHỦ TRÌ</b><br><span style="font-style:italic;font-size:11pt">(Ký, ghi rõ họ tên)</span><br><br><br><br>' + esc(meta.chair) + '</td>' +
+'<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:22pt"><tr>' +
+'<td width="50%" align="center" valign="top"><b>THƯ KÝ</b><br><i style="font-size:11pt">(Ký, ghi rõ họ tên)</i></td>' +
+'<td width="50%" align="center" valign="top"><b>CHỦ TRÌ</b><br><i style="font-size:11pt">(Ký, ghi rõ họ tên)</i></td>' +
+'</tr><tr>' +
+'<td align="center" style="padding-top:46pt">' + esc(meta.sec) + '</td>' +
+'<td align="center" style="padding-top:46pt">' + esc(meta.chair) + '</td>' +
 '</tr></table></body></html>';
   }
 
