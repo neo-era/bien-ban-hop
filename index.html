@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biên bản họp — Ghi bằng giọng nói</title>
+<style>
+  :root{
+    --ink:#0f172a; --ink-soft:#334155; --muted:#64748b; --line:#e2e8f0;
+    --paper:#f8fafc; --card:#ffffff; --slate:#1e293b;
+    --amber:#d97706; --amber-soft:#fef3e2; --rec:#dc2626; --rec-soft:#fee2e2;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",Roboto,-apple-system,"Helvetica Neue",Arial,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  header{background:var(--slate);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .glyph{width:34px;height:34px;border-radius:9px;flex:0 0 auto;background:linear-gradient(135deg,var(--amber),#f59e0b);display:grid;place-items:center;font-weight:800;color:#1e293b;font-size:15px}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+  .brand p{font-size:11.5px;color:#94a3b8;font-weight:500}
+  .status{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.08);padding:6px 12px;border-radius:999px;white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:#64748b;flex:0 0 auto}
+  .status.live .dot{background:var(--rec);animation:pulse 1.2s infinite}
+  .status.live{background:var(--rec-soft);color:var(--rec)}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px;display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+  @media(max-width:860px){.wrap{grid-template-columns:1fr;padding:14px;gap:14px}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card-h h2{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+  .card-b{padding:16px}
+  .side{position:sticky;top:82px}
+  @media(max-width:860px){.side{position:static}}
+  label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:0 0 5px}
+  .field{margin-bottom:12px}
+  .field:last-child{margin-bottom:0}
+  input,textarea,select{width:100%;font:inherit;font-size:13.5px;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#fff;transition:border-color .15s,box-shadow .15s}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+  textarea{resize:vertical;min-height:56px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .controls{display:flex;flex-direction:column;gap:10px}
+  .btn{font:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1px solid transparent;border-radius:10px;padding:11px 14px;display:flex;align-items:center;justify-content:center;gap:9px;transition:transform .06s,background .15s,border-color .15s;user-select:none}
+  .btn:active{transform:translateY(1px)}
+  .btn-rec{background:var(--rec);color:#fff}.btn-rec:hover{background:#b91c1c}
+  .btn-stop{background:var(--slate);color:#fff}.btn-stop:hover{background:#0f172a}
+  .btn-ghost{background:#fff;color:var(--ink-soft);border-color:var(--line)}.btn-ghost:hover{border-color:var(--muted);background:#f8fafc}
+  .btn-amber{background:var(--amber);color:#fff}.btn-amber:hover{background:#b45309}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn .ic{font-size:16px;line-height:1}
+  .btn-sm{padding:7px 10px;font-size:12.5px;border-radius:8px}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-size:26px;font-weight:800;text-align:center;letter-spacing:1px;margin:2px 0 10px}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.45}
+  .live-bar{padding:12px 16px;background:var(--amber-soft);border-bottom:1px dashed #fcd9a6;font-size:14px;color:#92400e;min-height:46px;display:flex;align-items:center;gap:8px;font-style:italic}
+  .live-bar.idle{background:#f1f5f9;color:var(--muted);border-bottom-color:var(--line)}
+  .live-bar .mic{font-style:normal}
+  .entry{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px;background:#fff;transition:border-color .15s,box-shadow .15s}
+  .entry.active{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+  .entry-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .spk{flex:1;font-weight:700;font-size:13px;color:var(--slate);border:none;border-bottom:1px dashed transparent;padding:2px;background:transparent}
+  .spk:focus{outline:none;border-bottom-color:var(--amber);box-shadow:none}
+  .tstamp{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .del{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;display:grid;place-items:center}
+  .del:hover{border-color:var(--rec);color:var(--rec);background:var(--rec-soft)}
+  .etext{width:100%;border:none;background:transparent;font-size:14px;color:var(--ink);resize:none;min-height:26px;padding:2px;font-family:inherit;line-height:1.5}
+  .etext:focus{outline:none}
+  .empty{padding:48px 24px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+  .empty p{font-size:13.5px;max-width:340px;margin:0 auto;line-height:1.55}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--slate);color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .banner{margin:14px 20px 0;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5;background:var(--rec-soft);color:#991b1b;border:1px solid #fecaca;display:none}
+  .banner.show{display:block}
+  footer{text-align:center;padding:18px;color:var(--muted);font-size:11.5px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="glyph">BB</div>
+    <div>
+      <h1>Biên bản họp bằng giọng nói</h1>
+      <p>Nói tiếng Việt · máy tự gõ thành biên bản</p>
+    </div>
+  </div>
+  <div class="status" id="status"><span class="dot"></span><span id="statusTxt">Sẵn sàng</span></div>
+</header>
+
+<div class="banner" id="banner"></div>
+
+<div class="wrap">
+  <div class="side">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h2>Điều khiển ghi</h2></div>
+      <div class="card-b">
+        <div class="timer" id="timer">00:00</div>
+        <div class="controls">
+          <button class="btn btn-rec" id="btnRec"><span class="ic">●</span><span id="recLbl">Bắt đầu ghi</span></button>
+          <div class="btnrow">
+            <button class="btn btn-ghost btn-sm" id="btnSpeaker" style="flex:1" disabled><span class="ic">＋</span>Người nói mới</button>
+            <button class="btn btn-stop btn-sm" id="btnStop" style="flex:1" disabled>Kết thúc</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:12px">Nhấn <b>Bắt đầu ghi</b> rồi nói bình thường. Người khác phát biểu thì nhấn <b>Người nói mới</b> để tách đoạn. Sửa tay mọi đoạn bất cứ lúc nào.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Thông tin cuộc họp</h2></div>
+      <div class="card-b">
+        <div class="field"><label>Tên đơn vị</label><input id="mCompany" value="Công ty TNHH Kỹ Nghệ Lâm Việt Phát (LAVIPCO)"></div>
+        <div class="field"><label>Tiêu đề / Nội dung họp</label><input id="mTitle" placeholder="VD: Họp triển khai gói thầu..."></div>
+        <div class="row2">
+          <div class="field"><label>Ngày họp</label><input type="date" id="mDate"></div>
+          <div class="field"><label>Giờ bắt đầu</label><input type="time" id="mTime"></div>
+        </div>
+        <div class="field"><label>Địa điểm</label><input id="mPlace" placeholder="VD: Phòng họp LAVIPCO"></div>
+        <div class="field"><label>Chủ trì</label><input id="mChair" placeholder="Họ tên người chủ trì"></div>
+        <div class="field"><label>Thư ký</label><input id="mSec" placeholder="Họ tên thư ký"></div>
+        <div class="field" style="margin-bottom:0"><label>Thành phần tham dự</label><textarea id="mAtt" placeholder="Mỗi người 1 dòng"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>Nội dung biên bản</h2>
+      <div class="toolbar">
+        <button class="btn btn-ghost btn-sm" id="btnAdd"><span class="ic">＋</span>Thêm đoạn</button>
+        <button class="btn btn-ghost btn-sm" id="btnClear">Xóa hết</button>
+      </div>
+    </div>
+    <div class="live-bar idle" id="liveBar"><span class="mic">🎙️</span><span id="liveTxt">Chưa ghi. Nhấn "Bắt đầu ghi" để nói.</span></div>
+    <div class="entries" id="entries"></div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <div class="toolbar">
+        <button class="btn btn-amber" id="btnWord" style="flex:1"><span class="ic">⭳</span>Tải biên bản (Word)</button>
+        <button class="btn btn-ghost" id="btnCopy"><span class="ic">⧉</span>Sao chép</button>
+        <button class="btn btn-ghost" id="btnTxt"><span class="ic">⭳</span>.txt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>Dữ liệu chỉ nằm trên máy anh (tự lưu trong trình duyệt). Nhận giọng nói dùng công cụ sẵn của Chrome — cần <b>internet</b> và micro. Nên mở bằng <b>Google Chrome</b>.</footer>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== LÕI THUẦN (đồng bộ với src/logic.js đã test) ===== -->
+<script>
+(function (root) {
+  "use strict";
+  function fmtTime(sec){sec=Math.floor(Number(sec)||0);if(sec<0)sec=0;var h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;var p=function(n){return(n<10?"0":"")+n;};return(h>0?p(h)+":":"")+p(m)+":"+p(s);}
+  function dmy(iso){if(!iso||typeof iso!=="string")return"";var p=iso.split("-");if(p.length!==3)return iso;return"ngày "+p[2]+" tháng "+p[1]+" năm "+p[0];}
+  function esc(s){if(s===null||s===undefined)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  function appendText(cur,chunk){var c=(chunk||"").trim();if(!c)return cur||"";if(!cur)return c;return cur.replace(/\s+$/,"")+" "+c;}
+  function extractSpeech(results,idx){var finalText="",interim="";for(var i=idx||0;i<results.length;i++){var t=results[i].transcript;if(results[i].isFinal)finalText+=t;else interim+=t;}return{finalText:finalText,interim:interim};}
+  function bodyLines(entries){return(entries||[]).filter(function(e){return(e.text||"").trim()||(e.speaker||"").trim();});}
+  function fileStem(meta){meta=meta||{};var t=(meta.title||"").replace(/[^\p{L}\p{N}]+/gu,"_").replace(/^_+|_+$/g,"").slice(0,40);if(!t)t="cuoc_hop";return"Bien_ban_"+t+"_"+(meta.date||"");}
+  function plainText(meta,entries){meta=meta||{};var out=[],lines=bodyLines(entries);if(meta.company)out.push(String(meta.company).toUpperCase());out.push("","BIÊN BẢN CUỘC HỌP","");out.push("Nội dung: "+(meta.title||"(chưa đặt tiêu đề)"));if(meta.date||meta.time)out.push("Thời gian: "+(meta.time?meta.time+" - ":"")+dmy(meta.date));if(meta.place)out.push("Địa điểm: "+meta.place);if(meta.chair)out.push("Chủ trì: "+meta.chair);if(meta.sec)out.push("Thư ký: "+meta.sec);if(meta.att){out.push("Thành phần tham dự:");String(meta.att).split("\n").forEach(function(a){if(a.trim())out.push("  - "+a.trim());});}out.push("","NỘI DUNG CUỘC HỌP:","");lines.forEach(function(e,i){var who=(e.speaker||"").trim()||("Ý kiến "+(i+1));out.push(who+(e.time?" ("+e.time+")":"")+":");out.push((e.text||"").trim());out.push("");});out.push("","Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất.");out.push("","        THƯ KÝ                              CHỦ TRÌ");out.push("","","  "+(meta.sec||"")+"                         "+(meta.chair||""));return out.join("\n");}
+  function wordHtml(meta,entries){meta=meta||{};var lines=bodyLines(entries);var rows=lines.map(function(e,i){var head=(e.speaker||"").trim()||("Ý kiến "+(i+1));if(e.time)head+=" — "+e.time;return'<p style="margin:0 0 4pt"><b>'+esc(head)+':</b></p><p style="margin:0 0 10pt;text-align:justify">'+esc((e.text||"").trim()).replace(/\n/g,"<br>")+'</p>';}).join("");var attHtml=meta.att?String(meta.att).split("\n").filter(function(a){return a.trim();}).map(function(a){return'<p style="margin:0 0 2pt">- '+esc(a.trim())+'</p>';}).join(""):"";return'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>@page{size:A4;margin:2cm 2cm 2cm 3cm} body{font-family:"Times New Roman",serif;font-size:13pt;color:#000;line-height:1.4} h1{font-size:15pt;text-align:center;margin:0 0 4pt} .sub{text-align:center;font-style:italic;margin:0 0 14pt} .meta p{margin:0 0 3pt} .sec{font-weight:bold;margin:12pt 0 6pt}</style></head><body>'+(meta.company?'<p style="text-align:center;font-weight:bold;text-transform:uppercase;margin:0 0 10pt">'+esc(meta.company)+'</p>':'')+'<h1>BIÊN BẢN CUỘC HỌP</h1><p class="sub">'+esc(meta.place?meta.place+", ":"")+esc(dmy(meta.date))+'</p><div class="meta"><p><b>Nội dung họp:</b> '+esc(meta.title||"(chưa đặt tiêu đề)")+'</p>'+((meta.date||meta.time)?'<p><b>Thời gian:</b> '+esc(meta.time?meta.time+" - ":"")+esc(dmy(meta.date))+'</p>':'')+(meta.place?'<p><b>Địa điểm:</b> '+esc(meta.place)+'</p>':'')+(meta.chair?'<p><b>Chủ trì:</b> '+esc(meta.chair)+'</p>':'')+(meta.sec?'<p><b>Thư ký:</b> '+esc(meta.sec)+'</p>':'')+(attHtml?'<p><b>Thành phần tham dự:</b></p>'+attHtml:'')+'</div><p class="sec">NỘI DUNG CUỘC HỌP</p>'+rows+'<p style="margin:14pt 0 0;text-align:justify">Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất thông qua.</p><table style="width:100%;margin-top:24pt;border:none"><tr><td style="width:50%;text-align:center;border:none"><b>THƯ KÝ</b><br><span style="font-style:italic;font-size:11pt">(Ký, ghi rõ họ tên)</span><br><br><br><br>'+esc(meta.sec)+'</td><td style="width:50%;text-align:center;border:none"><b>CHỦ TRÌ</b><br><span style="font-style:italic;font-size:11pt">(Ký, ghi rõ họ tên)</span><br><br><br><br>'+esc(meta.chair)+'</td></tr></table></body></html>';}
+  root.BBLogic={fmtTime:fmtTime,dmy:dmy,esc:esc,appendText:appendText,extractSpeech:extractSpeech,bodyLines:bodyLines,fileStem:fileStem,plainText:plainText,wordHtml:wordHtml};
+})(window);
+</script>
+
+<!-- ===== UI + NHẬN GIỌNG NÓI (chỉ chạy trên trình duyệt) ===== -->
+<script>
+(function(){
+  "use strict";
+  var L=window.BBLogic;
+  var entries=[], activeId=null, recording=false, wantRecord=false;
+  var elapsed=0, timerBase=0, startTs=0, timerInt=null, rec=null;
+  var retryN=0, restartTimer=null, saveWarned=false, lastError=null;
+  var $=function(id){return document.getElementById(id);};
+  var ent=$("entries"), liveTxt=$("liveTxt"), liveBar=$("liveBar");
+
+  (function(){var d=new Date();$("mDate").value=d.toISOString().slice(0,10);$("mTime").value=d.toTimeString().slice(0,5);})();
+
+  function collectMeta(){var ids=["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"],o={};ids.forEach(function(i){o[i]=$(i).value;});return o;}
+  function meta(){var m=collectMeta();return{company:m.mCompany||"",title:m.mTitle||"",date:m.mDate||"",time:m.mTime||"",place:m.mPlace||"",chair:m.mChair||"",sec:m.mSec||"",att:m.mAtt||""};}
+
+  function save(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
+  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries)entries=d.entries;if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}}catch(e){}}
+  ["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"].forEach(function(i){$(i).addEventListener("input",save);});
+
+  var toastTo;
+  function toast(msg){var t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTo);toastTo=setTimeout(function(){t.classList.remove("show");},2200);}
+  function banner(html){var b=$("banner");if(!html){b.classList.remove("show");return;}b.innerHTML=html;b.classList.add("show");}
+
+  function renderTimer(){$("timer").textContent=L.fmtTime(elapsed);}
+  function startTimer(){startTs=Date.now();timerInt=setInterval(function(){elapsed=(Date.now()-startTs)/1000+timerBase;renderTimer();},500);}
+  function beginTimer(){timerBase=elapsed;startTimer();}
+  function pauseTimer(){clearInterval(timerInt);timerInt=null;}
+
+  function uid(){return"e"+Date.now()+Math.floor(Math.random()*1000);}
+  function nowTime(){return new Date().toTimeString().slice(0,5);}
+
+  function addEntry(speaker,focusIt){var e={id:uid(),time:nowTime(),speaker:speaker||"",text:""};entries.push(e);activeId=e.id;render();if(focusIt){var n=document.querySelector('[data-txt="'+e.id+'"]');if(n)n.focus();}save();return e;}
+  function getActive(){var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e)e=addEntry("",false);return e;}
+  function delEntry(id){entries=entries.filter(function(x){return x.id!==id;});if(activeId===id)activeId=entries.length?entries[entries.length-1].id:null;render();save();}
+
+  function render(){
+    if(!entries.length){ent.innerHTML='<div class="empty"><div class="big">🎙️</div><p>Chưa có nội dung. Nhấn <b>Bắt đầu ghi</b> để nói, hoặc <b>Thêm đoạn</b> để gõ tay.</p></div>';return;}
+    ent.innerHTML="";
+    entries.forEach(function(e){
+      var d=document.createElement("div");
+      d.className="entry"+(e.id===activeId&&recording?" active":"");
+      d.innerHTML='<div class="entry-top"><input class="spk" data-spk="'+e.id+'" placeholder="Người nói / mục" value="'+L.esc(e.speaker)+'"><span class="tstamp">'+L.esc(e.time)+'</span><button class="del" data-del="'+e.id+'" title="Xóa đoạn">✕</button></div><textarea class="etext" data-txt="'+e.id+'" rows="1" placeholder="Nội dung...">'+L.esc(e.text)+'</textarea>';
+      ent.appendChild(d);
+      autoGrow(d.querySelector(".etext"));
+    });
+    bindEntry();
+  }
+  function autoGrow(ta){if(!ta)return;ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";}
+  function bindEntry(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-txt]"),function(ta){ta.addEventListener("input",function(){var e=entries.filter(function(x){return x.id===ta.getAttribute("data-txt");})[0];if(e){e.text=ta.value;save();}autoGrow(ta);});ta.addEventListener("blur",function(){var e=entries.filter(function(x){return x.id===ta.getAttribute("data-txt");})[0];if(e&&ta.value!==e.text){ta.value=e.text;autoGrow(ta);}});});
+    Array.prototype.forEach.call(document.querySelectorAll("[data-spk]"),function(ip){ip.addEventListener("input",function(){var e=entries.filter(function(x){return x.id===ip.getAttribute("data-spk");})[0];if(e){e.speaker=ip.value;save();}});});
+    Array.prototype.forEach.call(document.querySelectorAll("[data-del]"),function(b){b.addEventListener("click",function(){delEntry(b.getAttribute("data-del"));});});
+  }
+  function updateActiveText(finalChunk){var e=getActive();e.text=L.appendText(e.text,finalChunk);var ta=document.querySelector('[data-txt="'+e.id+'"]');if(ta){if(document.activeElement!==ta){ta.value=e.text;autoGrow(ta);}}else render();save();}
+
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  function tryStart(){
+    if(!wantRecord)return;
+    try{rec.start();}
+    catch(e){retryN++;if(retryN>10){wantRecord=false;setIdle();banner('<b>Không khởi động lại được nhận diện giọng nói.</b> Nội dung đã ghi vẫn còn — hãy tải lại trang rồi bấm "Ghi tiếp".');return;}restartTimer=setTimeout(tryStart,Math.min(400*Math.pow(2,retryN),5000));}
+  }
+  function buildRec(){
+    var r=new SR();r.lang="vi-VN";r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
+    r.onresult=function(ev){
+      if(!wantRecord)return;
+      retryN=0;if(lastError){lastError=null;banner("");}
+      var arr=[];for(var i=0;i<ev.results.length;i++)arr.push({isFinal:ev.results[i].isFinal,transcript:ev.results[i][0].transcript});
+      var out=L.extractSpeech(arr,ev.resultIndex);
+      if(out.finalText)updateActiveText(out.finalText);
+      liveTxt.textContent=out.interim?out.interim:(out.finalText?"…":"Đang nghe…");
+    };
+    r.onerror=function(ev){
+      lastError=ev.error;
+      if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){wantRecord=false;clearTimeout(restartTimer);banner('<b>Chưa cấp quyền micro.</b> Bấm biểu tượng khóa 🔒 trên thanh địa chỉ → cho phép Microphone → tải lại trang.');setIdle();return;}
+      if(ev.error==="network")banner('<b>Mất kết nối mạng.</b> Đang tự thử lại… Nội dung đã ghi vẫn giữ; nhận diện sẽ chạy tiếp khi có mạng.');
+      else if(ev.error==="audio-capture")banner('<b>Không thấy micro.</b> Kiểm tra micro đang cắm/được chọn. Đang tự thử lại…');
+    };
+    r.onend=function(){
+      if(!wantRecord){setIdle();return;}
+      var isErr=lastError&&lastError!=="no-speech"&&lastError!=="aborted";
+      restartTimer=setTimeout(tryStart,isErr?Math.min(400*Math.pow(2,retryN),5000):200);
+    };
+    return r;
+  }
+  function setLive(){recording=true;$("status").classList.add("live");$("statusTxt").textContent="Đang ghi";liveBar.classList.remove("idle");liveTxt.textContent="Đang nghe…";$("recLbl").textContent="Tạm dừng";$("btnRec").classList.remove("btn-rec");$("btnRec").classList.add("btn-stop");$("btnRec").querySelector(".ic").textContent="❚❚";$("btnSpeaker").disabled=false;$("btnStop").disabled=false;render();}
+  function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();render();}
+
+  function startRec(){
+    if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
+    banner("");retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;if(!rec)rec=buildRec();try{rec.start();}catch(e){}setLive();beginTimer();
+  }
+  function pauseRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();}
+  function stopRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
+
+  function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);}
+
+  $("btnRec").addEventListener("click",function(){recording?pauseRec():startRec();});
+  $("btnStop").addEventListener("click",stopRec);
+  $("btnSpeaker").addEventListener("click",function(){var name=prompt("Tên người nói tiếp theo (để trống nếu chưa rõ):","");addEntry(name||"",false);if(recording)liveTxt.textContent="Đang nghe…";});
+  $("btnAdd").addEventListener("click",function(){addEntry("",true);});
+  $("btnClear").addEventListener("click",function(){if(!entries.length)return;if(confirm("Xóa toàn bộ nội dung biên bản? Không khôi phục được.")){entries=[];activeId=null;elapsed=0;timerBase=0;renderTimer();render();save();toast("Đã xóa hết.");}});
+  $("btnWord").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".doc",L.wordHtml(meta(),entries),"application/msword");toast("Đã tải file Word.");});
+  $("btnTxt").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".txt",L.plainText(meta(),entries),"text/plain;charset=utf-8");toast("Đã tải file .txt.");});
+  $("btnCopy").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để sao chép.");return;}var txt=L.plainText(meta(),entries);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép biên bản.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
+  function fallbackCopy(txt){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Đã sao chép.");}catch(e){toast("Không sao chép được.");}document.body.removeChild(ta);}
+
+  window.addEventListener("beforeunload",function(e){if(recording||entries.length){e.preventDefault();e.returnValue="";}});
+
+  if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
+  load();renderTimer();setIdle();
+})();
+</script>
+</body>
+</html>

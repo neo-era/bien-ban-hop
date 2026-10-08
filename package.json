@@ -1,0 +1,17 @@
+{
+  "name": "bien-ban-hop-giong-noi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "pretest": "node src/extract_inline.js",
+    "test": "node --test src/test.js src/test_inline.js",
+    "smoke": "node src/smoke.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
