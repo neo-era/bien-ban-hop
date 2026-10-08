@@ -76,3 +76,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Phụ thuộc internet + Chrome. Hướng mở rộng nếu cần offline: dùng PhoWhisper/
   Transformers.js (nặng hơn), hoặc thu âm rồi nạp file để chuyển sau.
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
+
+## 11. Nhật ký thay đổi
+- v1.0: bản đầu (nói→text, tách người nói, sửa tay, xuất Word/txt, tự lưu).
+- v1.1: tự xin quyền micro + GPS khi mở; nút "📍 GPS" lấy toạ độ điền vào Địa điểm
+  kèm link Google Maps. Lưu ý: micro & GPS cần **secure context** (HTTPS như GitHub
+  Pages, hoặc localhost/file://); trình duyệt yêu cầu thao tác người dùng để hiện prompt,
+  nên app xin lại quyền ở lần chạm đầu tiên nếu lúc mở bị chặn.

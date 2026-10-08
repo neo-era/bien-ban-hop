@@ -83,7 +83,7 @@
   <div class="brand">
     <div class="glyph">BB</div>
     <div>
-      <h1>Biên bản họp bằng giọng nói<span class="ver">v1.0</span></h1>
+      <h1>Biên bản họp bằng giọng nói<span class="ver">v1.1</span></h1>
       <p>Nói tiếng Việt · máy tự gõ thành biên bản</p>
     </div>
   </div>
@@ -117,7 +117,10 @@
           <div class="field"><label>Ngày họp</label><input type="date" id="mDate"></div>
           <div class="field"><label>Giờ bắt đầu</label><input type="time" id="mTime"></div>
         </div>
-        <div class="field"><label>Địa điểm</label><input id="mPlace" placeholder="VD: Phòng họp LAVIPCO"></div>
+        <div class="field"><label>Địa điểm</label>
+          <div style="display:flex;gap:6px"><input id="mPlace" placeholder="VD: Phòng họp LAVIPCO" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" id="btnGPS" style="flex:0 0 auto;white-space:nowrap">📍 GPS</button></div>
+          <a id="gpsLink" href="#" target="_blank" rel="noopener" style="display:none;font-size:11px;color:var(--amber);margin-top:5px;text-decoration:none"></a>
+        </div>
         <div class="field"><label>Chủ trì</label><input id="mChair" placeholder="Họ tên người chủ trì"></div>
         <div class="field"><label>Thư ký</label><input id="mSec" placeholder="Họ tên thư ký"></div>
         <div class="field" style="margin-bottom:0"><label>Thành phần tham dự</label><textarea id="mAtt" placeholder="Mỗi người 1 dòng"></textarea></div>
@@ -256,12 +259,43 @@
 
   function startRec(){
     if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
-    banner("");retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;if(!rec)rec=buildRec();try{rec.start();}catch(e){}setLive();beginTimer();
+    banner("");requestMic(false);retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;if(!rec)rec=buildRec();try{rec.start();}catch(e){}setLive();beginTimer();
   }
   function pauseRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();}
   function stopRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
 
   function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);}
+
+  // ===== Tự xin quyền micro + GPS =====
+  var micGranted=false, gpsDone=false, gpsAsked=false;
+  function requestMic(auto){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      stream.getTracks().forEach(function(t){t.stop();});micGranted=true;
+      if(lastError==="not-allowed"||lastError==="service-not-allowed"){lastError=null;banner("");}
+    }).catch(function(e){
+      if(!auto)banner('<b>Chưa cấp quyền micro.</b> Bấm biểu tượng khóa 🔒 trên thanh địa chỉ → cho phép Microphone → tải lại trang.');
+    });
+  }
+  function showGpsLink(la,lo){var a=$("gpsLink");if(!a)return;a.href="https://www.google.com/maps?q="+la+","+lo;a.textContent="📍 Mở vị trí trên Google Maps";a.style.display="inline-block";}
+  function getGPS(auto){
+    if(!navigator.geolocation){if(!auto)toast("Trình duyệt không hỗ trợ định vị GPS.");return;}
+    var btn=$("btnGPS");if(btn){btn.disabled=true;btn.textContent="Đang lấy…";}
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var la=pos.coords.latitude.toFixed(6),lo=pos.coords.longitude.toFixed(6);
+      var f=$("mPlace"),coord="GPS "+la+", "+lo;
+      if(!f.value.trim())f.value=coord;else if(f.value.indexOf("GPS ")<0)f.value=f.value.trim()+" ("+coord+")";
+      f.dispatchEvent(new Event("input",{bubbles:true}));
+      showGpsLink(la,lo);gpsDone=true;
+      if(btn){btn.disabled=false;btn.textContent="📍 GPS";}
+      if(!auto)toast("Đã lấy vị trí GPS.");
+    },function(err){
+      if(btn){btn.disabled=false;btn.textContent="📍 GPS";}
+      if(!auto){if(err&&err.code===1)toast("Đã từ chối quyền vị trí.");else toast("Không lấy được vị trí.");}
+    },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+  }
+  function askPermissions(){requestMic(true);if(!gpsDone&&!gpsAsked){gpsAsked=true;getGPS(true);}}
+  $("btnGPS").addEventListener("click",function(){getGPS(false);});
 
   $("btnRec").addEventListener("click",function(){recording?pauseRec():startRec();});
   $("btnStop").addEventListener("click",stopRec);
@@ -277,6 +311,9 @@
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
   load();renderTimer();setIdle();
+  askPermissions();
+  var onceGesture=function(){askPermissions();document.removeEventListener("pointerdown",onceGesture);};
+  document.addEventListener("pointerdown",onceGesture);
 })();
 </script>
 </body>
