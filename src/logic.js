@@ -64,6 +64,8 @@
     meta = meta || {};
     var out = [], lines = bodyLines(entries);
     if (meta.company) out.push(String(meta.company).toUpperCase());
+    out.push("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM");
+    out.push("Độc lập - Tự do - Hạnh phúc");
     out.push("", "BIÊN BẢN CUỘC HỌP", "");
     out.push("Nội dung: " + (meta.title || "(chưa đặt tiêu đề)"));
     if (meta.date || meta.time) out.push("Thời gian: " + (meta.time ? meta.time + " - " : "") + dmy(meta.date));
@@ -102,7 +104,10 @@
 '<style>@page{size:A4;margin:2cm 2cm 2cm 3cm} body{font-family:"Times New Roman",serif;font-size:13pt;color:#000;line-height:1.4}' +
 'h1{font-size:15pt;text-align:center;margin:0 0 4pt} .sub{text-align:center;font-style:italic;margin:0 0 14pt}' +
 '.meta p{margin:0 0 3pt} .sec{font-weight:bold;margin:12pt 0 6pt}</style></head><body>' +
-(meta.company ? '<p style="text-align:center;font-weight:bold;text-transform:uppercase;margin:0 0 10pt">' + esc(meta.company) + '</p>' : '') +
+'<table width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8pt"><tr>' +
+'<td width="46%" align="center" valign="top">' + (meta.company ? '<b style="text-transform:uppercase">' + esc(meta.company) + '</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:110px;font-size:2pt">&#160;</td></tr></table>' : '') + '</td>' +
+'<td width="54%" align="center" valign="top"><b style="font-size:12pt;white-space:nowrap">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:150px;font-size:2pt">&#160;</td></tr></table></td>' +
+'</tr></table>' +
 '<h1>BIÊN BẢN CUỘC HỌP</h1>' +
 '<p class="sub">' + esc(meta.place ? meta.place + ", " : "") + esc(dmy(meta.date)) + '</p>' +
 '<div class="meta">' +

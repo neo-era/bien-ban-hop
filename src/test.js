@@ -134,6 +134,18 @@ test("wordHtml: Times New Roman + tiêu đề + khối ký", () => {
   assert.ok(h.includes("BIÊN BẢN CUỘC HỌP"));
   assert.ok(h.includes("THƯ KÝ") && h.includes("CHỦ TRÌ"));
 });
+test("wordHtml: có Quốc hiệu - Tiêu ngữ theo chuẩn NĐ30", () => {
+  const meta = { company: "LAVIPCO", title: "T", date: "", time: "", place: "", chair: "", sec: "", att: "" };
+  const h = L.wordHtml(meta, [{ id: "1", time: "08:00", speaker: "A", text: "x" }]);
+  assert.ok(h.includes("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"));
+  assert.ok(h.includes("Độc lập - Tự do - Hạnh phúc"));
+});
+test("plainText: có Quốc hiệu - Tiêu ngữ", () => {
+  const meta = { company: "LAVIPCO", title: "T", date: "", time: "", place: "", chair: "", sec: "", att: "" };
+  const t = L.plainText(meta, [{ id: "1", time: "08:00", speaker: "A", text: "x" }]);
+  assert.ok(t.includes("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"));
+  assert.ok(t.includes("Độc lập - Tự do - Hạnh phúc"));
+});
 test("wordHtml: thoát ký tự đặc biệt trong nội dung (ca xấu)", () => {
   const meta = { title: "T", date: "", time: "", place: "", chair: "", sec: "", att: "" };
   const entries = [{ id: "1", time: "08:05", speaker: "A", text: "1 < 2 & 3 > 0" }];

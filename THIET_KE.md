@@ -78,6 +78,9 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v1.2: thêm Quốc hiệu – Tiêu ngữ (góc phải) + tên công ty (góc trái) theo bố cục 2 cột
+  chuẩn NĐ 30/2020, có đường kẻ dưới mỗi khối. Quốc hiệu cỡ 12pt + nowrap để gọn 1 dòng
+  trong MS Word (LibreOffice preview có thể ngắt do không honor bề rộng cột).
 - v1.0: bản đầu (nói→text, tách người nói, sửa tay, xuất Word/txt, tự lưu).
 - v1.1: tự xin quyền micro + GPS khi mở; nút "📍 GPS" lấy toạ độ điền vào Địa điểm
   kèm link Google Maps. Lưu ý: micro & GPS cần **secure context** (HTTPS như GitHub
