@@ -218,36 +218,6 @@ test("plainText: không có Kết luận/Phân công → không in tiêu đề m
   assert.ok(!t.includes("PHÂN CÔNG NHIỆM VỤ"));
 });
 
-// ---------- findSegment (nghe lại đúng đoạn) ----------
-const SEGS = [{ id: "a", base: 0, dur: 120 }, { id: "b", base: 300, dur: 60 }];
-test("findSegment: thời điểm nằm trong đoạn ghi thứ nhất", () => {
-  const r = L.findSegment(SEGS, 45);
-  assert.strictEqual(r.seg.id, "a"); assert.strictEqual(r.offset, 45);
-});
-test("findSegment: thời điểm thuộc đoạn ghi sau (sau khi tải lại trang)", () => {
-  const r = L.findSegment(SEGS, 330);
-  assert.strictEqual(r.seg.id, "b"); assert.strictEqual(r.offset, 30);
-});
-test("findSegment: rơi vào khoảng KHÔNG ghi âm → null (không phát bừa đoạn khác)", () => {
-  assert.strictEqual(L.findSegment(SEGS, 200), null);
-});
-test("findSegment: hơi quá cuối đoạn đang ghi (≤5s, chunk chưa kịp tới) → vẫn nhận", () => {
-  const r = L.findSegment(SEGS, 123);
-  assert.strictEqual(r.seg.id, "a"); assert.strictEqual(r.offset, 120);
-});
-test("findSegment: không có ghi âm / thời điểm không hợp lệ → null", () => {
-  assert.strictEqual(L.findSegment([], 10), null);
-  assert.strictEqual(L.findSegment(null, 10), null);
-  assert.strictEqual(L.findSegment(SEGS, null), null);
-});
-test("findSegment: sát trước đoạn (≤3s, chờ cấp micro) → đầu đoạn, không âm", () => {
-  const r = L.findSegment([{ id: "x", base: 10, dur: 50 }], 8);
-  assert.strictEqual(r.seg.id, "x"); assert.strictEqual(r.offset, 0);
-});
-test("findSegment: trước đoạn đầu quá xa → null", () => {
-  assert.strictEqual(L.findSegment([{ id: "x", base: 10, dur: 50 }], 3), null);
-});
-
 // ---------- wordHtml ----------
 test("wordHtml: Times New Roman + tiêu đề + khối ký", () => {
   const meta = { company: "LAVIPCO", title: "Họp A", date: "2026-10-08", time: "08:00",

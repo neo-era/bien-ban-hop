@@ -7,7 +7,7 @@
     "build": "node src/build.js",
     "test": "node src/build.js && node src/extract_inline.js && node --test src/test.js src/test_inline.js src/test_docx.js",
     "smoke": "node src/build.js && node src/smoke.js",
-    "e2e": "node src/build.js && python3 src/e2e_audio.py && python3 src/e2e_review.py"
+    "e2e": "node src/build.js && python3 src/e2e_live.py"
   },
   "keywords": [],
   "author": "",

@@ -60,22 +60,6 @@
     return s;
   }
 
-  // Tìm đoạn ghi âm chứa thời điểm t (giây, theo đồng hồ cuộc họp).
-  // segs: [{id, base, dur}] — base = giây bắt đầu đoạn, dur = độ dài đã ghi.
-  // Trả null nếu t không nằm trong đoạn nào (khoảng tắt ghi âm) → không phát bừa đoạn khác.
-  // Dung sai: trước đoạn ≤3s (chờ cấp micro), sau cuối ≤5s (chunk chưa kịp tới).
-  function findSegment(segs, t) {
-    if (!segs || !segs.length || t === null || t === undefined || isNaN(t)) return null;
-    var sorted = segs.slice().sort(function (a, b) { return a.base - b.base; });
-    for (var i = sorted.length - 1; i >= 0; i--) {
-      var s = sorted[i], d = s.dur || 0;
-      if (t >= s.base - 3 && t <= s.base + d + 5) {
-        return { seg: s, offset: Math.max(0, Math.min(t - s.base, d)) };
-      }
-    }
-    return null;
-  }
-
   function fileStem(meta) {
     meta = meta || {};
     var t = (meta.title || "").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 40);
@@ -239,7 +223,7 @@
     extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
-    cmpVersion: cmpVersion, sections: sections, findSegment: findSegment };
+    cmpVersion: cmpVersion, sections: sections };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BBLogic = api;

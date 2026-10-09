@@ -68,10 +68,6 @@
   .k-ketluan .kbadge{color:#047857}.k-phancong .kbadge{color:#1d4ed8}
   .taskrow{display:flex;gap:8px;margin-top:6px}
   .taskrow input{font-size:12.5px;padding:6px 9px}
-  .play{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--amber);cursor:pointer;font-size:11px;display:grid;place-items:center}
-  .play:hover{border-color:var(--amber);background:var(--amber-soft)}
-  #playerBar{display:none;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);background:#fffbeb;flex-wrap:wrap}
-  #playerBar audio{flex:1;min-width:200px;height:34px}
   .del{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;display:grid;place-items:center}
   .del:hover{border-color:var(--rec);color:var(--rec);background:var(--rec-soft)}
   .etext{width:100%;border:none;background:transparent;font-size:14px;color:var(--ink);resize:none;min-height:26px;padding:2px;font-family:inherit;line-height:1.5}
@@ -126,7 +122,7 @@
             <button class="btn btn-ghost btn-sm" id="btnPC" style="flex:1;color:#1d4ed8;border-color:#bfdbfe">＋ Phân công</button>
           </div>
         </div>
-        <p class="hint" style="margin-top:12px">Nhấn <b>Bắt đầu ghi</b> rồi nói bình thường. Người khác phát biểu thì nhấn <b>Người nói mới</b>. Chốt ý thì nhấn <b>＋ Kết luận</b> / <b>＋ Phân công</b> rồi đọc tiếp — máy ghi vào đúng mục. Bấm <b>▶</b> ở mỗi đoạn để nghe lại.</p>
+        <p class="hint" style="margin-top:12px">Nhấn <b>Bắt đầu ghi</b> rồi nói bình thường. Người khác phát biểu thì nhấn <b>Người nói mới</b>. Chốt ý thì nhấn <b>＋ Kết luận</b> / <b>＋ Phân công</b> rồi đọc tiếp — máy ghi vào đúng mục.</p>
         <p class="hint" style="margin-top:6px">💡 Mẹo: dùng <b>micro hội nghị đa hướng</b> đặt giữa bàn sẽ nhận đúng hơn nhiều so với micro điện thoại.</p>
       </div>
     </div>
@@ -162,16 +158,9 @@
     <div class="live-bar idle" id="liveBar"><span class="mic">🎙️</span><span id="liveTxt">Chưa ghi. Nhấn "Bắt đầu ghi" để nói.</span></div>
     <div style="padding:8px 12px 0"><input id="search" placeholder="🔍 Tìm trong biên bản..." style="font-size:13px;padding:7px 10px"></div>
     <div class="entries" id="entries"></div>
-    <div id="playerBar">
-      <span style="font-size:12px;font-weight:700;color:#92400e">🔊 Nghe lại</span>
-      <audio id="player" controls preload="metadata"></audio>
-      <button class="btn btn-ghost btn-sm" id="btnDlAudio" title="Tải bản ghi âm">⭳ Tải ghi âm</button>
-    </div>
     <details id="optPanel" style="margin:4px 12px 0;font-size:12.5px;color:var(--ink-soft)">
       <summary style="cursor:pointer;padding:6px 0;font-weight:600;color:var(--muted)">⚙️ Tùy chọn nhận dạng</summary>
       <div style="padding:4px 0 10px">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:4px;cursor:pointer"><input type="checkbox" id="optRec" checked style="width:auto">Ghi âm song song để nghe lại (lưu trong máy)</label>
-        <div class="hint" id="recHint" style="margin:0 0 8px 24px">Nếu trên điện thoại Android máy không nhận chữ khi bật mục này, hãy tắt đi.</div>
         <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="optCap" checked style="width:auto">Tự viết hoa đầu câu</label>
         <label style="display:block;margin-bottom:4px">Từ điển sửa thuật ngữ (mỗi dòng <b>sai=đúng</b>):</label>
         <textarea id="optDict" rows="4" placeholder="led=LED&#10;thgt=THGT&#10;hps=HPS" style="font-size:12.5px;font-family:monospace"></textarea>
@@ -254,22 +243,6 @@
       else if (txt || (e.speaker || "").trim()) s.notes.push(e);
     });
     return s;
-  }
-
-  // Tìm đoạn ghi âm chứa thời điểm t (giây, theo đồng hồ cuộc họp).
-  // segs: [{id, base, dur}] — base = giây bắt đầu đoạn, dur = độ dài đã ghi.
-  // Trả null nếu t không nằm trong đoạn nào (khoảng tắt ghi âm) → không phát bừa đoạn khác.
-  // Dung sai: trước đoạn ≤3s (chờ cấp micro), sau cuối ≤5s (chunk chưa kịp tới).
-  function findSegment(segs, t) {
-    if (!segs || !segs.length || t === null || t === undefined || isNaN(t)) return null;
-    var sorted = segs.slice().sort(function (a, b) { return a.base - b.base; });
-    for (var i = sorted.length - 1; i >= 0; i--) {
-      var s = sorted[i], d = s.dur || 0;
-      if (t >= s.base - 3 && t <= s.base + d + 5) {
-        return { seg: s, offset: Math.max(0, Math.min(t - s.base, d)) };
-      }
-    }
-    return null;
   }
 
   function fileStem(meta) {
@@ -435,7 +408,7 @@
     extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
-    cmpVersion: cmpVersion, sections: sections, findSegment: findSegment };
+    cmpVersion: cmpVersion, sections: sections };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BBLogic = api;
@@ -724,8 +697,7 @@
   var elapsed=0, timerBase=0, startTs=0, timerInt=null, rec=null;
   var retryN=0, restartTimer=null, saveWarned=false, lastError=null;
   var undoStack=[], dict=[], autoCap=true, saveTimer=null;
-  var meetingId="", stopping=false; // meetingId: mã cuộc họp — ghi âm gắn theo mã, không đoán bằng đồng hồ
-  function newMeetingId(){return "m"+Date.now()+Math.floor(Math.random()*1000);}
+  var stopping=false; // đang dừng: vẫn nhận nốt câu cuối Chrome trả về
   var $=function(id){return document.getElementById(id);};
   var ent=$("entries"), liveTxt=$("liveTxt"), liveBar=$("liveBar");
 
@@ -734,9 +706,9 @@
   function collectMeta(){var ids=["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"],o={};ids.forEach(function(i){o[i]=$(i).value;});return o;}
   function meta(){var m=collectMeta();return{company:m.mCompany||"",title:m.mTitle||"",date:m.mDate||"",time:m.mTime||"",place:m.mPlace||"",chair:m.mChair||"",sec:m.mSec||"",att:m.mAtt||""};}
 
-  function saveNow(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed,dict:$("optDict").value,autoCap:autoCap,recOn:$("optRec").checked,meetingId:meetingId}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
+  function saveNow(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed,dict:$("optDict").value,autoCap:autoCap}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
   function save(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,400);} // gộp ghi, đỡ hao khi họp dài
-  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries){entries=d.entries;entries.forEach(function(e){if(!e.id)e.id=uid();if(typeof e.text!=="string")e.text="";if(typeof e.speaker!=="string")e.speaker="";});}if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}if(typeof d.dict==="string")$("optDict").value=d.dict;if(typeof d.autoCap==="boolean"){autoCap=d.autoCap;$("optCap").checked=autoCap;}if(typeof d.recOn==="boolean"&&!$("optRec").disabled)$("optRec").checked=d.recOn;if(typeof d.meetingId==="string")meetingId=d.meetingId;dict=L.parseDict($("optDict").value);}catch(e){}}
+  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries){entries=d.entries;entries.forEach(function(e){if(!e.id)e.id=uid();if(typeof e.text!=="string")e.text="";if(typeof e.speaker!=="string")e.speaker="";});}if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}if(typeof d.dict==="string")$("optDict").value=d.dict;if(typeof d.autoCap==="boolean"){autoCap=d.autoCap;$("optCap").checked=autoCap;}dict=L.parseDict($("optDict").value);}catch(e){}}
   var DEFAULT_DICT="led=LED\nthgt=THGT\nhps=HPS\niot=IoT\nlavipco=LAVIPCO\nkwh=kWh\nkw=kW";
   ["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"].forEach(function(i){$(i).addEventListener("input",save);});
 
@@ -764,30 +736,22 @@
       :'<input class="spk" data-spk="'+e.id+'" placeholder="Người nói / mục" value="'+L.esc(e.speaker)+'">';
     var ph=k==="ketluan"?"Nội dung kết luận...":k==="phancong"?"Nội dung công việc...":"Nội dung...";
     d.innerHTML='<div class="entry-top">'+head+'<span class="tstamp">'+L.esc(e.time)+'</span>'+
-      '<button class="play" data-play="'+e.id+'" title="Nghe lại đoạn này" style="display:none">▶</button>'+
       '<button class="del" data-del="'+e.id+'" title="Xóa đoạn">✕</button></div>'+
       '<textarea class="etext" data-txt="'+e.id+'" rows="1" placeholder="'+ph+'">'+L.esc(e.text)+'</textarea>'+
       (k==="phancong"?'<div class="taskrow"><input data-who placeholder="Người thực hiện" value="'+L.esc(e.who||"")+'" style="flex:3"><input data-due placeholder="Thời hạn" value="'+L.esc(e.due||"")+'" style="flex:2"></div>':"");
     bindNode(d,e);
-    refreshPlayBtn(d,e);
     return d;
   }
   function bindNode(node,e){
     var ta=node.querySelector("[data-txt]"), ip=node.querySelector("[data-spk]"), del=node.querySelector("[data-del]");
-    var who=node.querySelector("[data-who]"), due=node.querySelector("[data-due]"), play=node.querySelector("[data-play]");
+    var who=node.querySelector("[data-who]"), due=node.querySelector("[data-due]");
     ta.addEventListener("input",function(){e.text=ta.value;save();autoGrow(ta);});
     ta.addEventListener("blur",function(){if(e.id===activeId&&pendingChunk)flushPending(e,ta);if(ta.value!==e.text){ta.value=e.text;autoGrow(ta);}});
     if(ip)ip.addEventListener("input",function(){e.speaker=ip.value;save();});
     if(who)who.addEventListener("input",function(){e.who=who.value;save();});
     if(due)due.addEventListener("input",function(){e.due=due.value;save();});
-    play.addEventListener("click",function(){playAt(e.aStart);});
     del.addEventListener("click",function(){delEntry(e.id);});
     setTimeout(function(){autoGrow(ta);},0);
-  }
-  // chỉ hiện ▶ khi đoạn có mốc thời gian VÀ có ghi âm phủ mốc đó
-  function refreshPlayBtn(node,e){
-    var b=node&&node.querySelector("[data-play]");if(!b)return;
-    b.style.display=(typeof e.aStart==="number"&&L.findSegment(curSegs(),e.aStart))?"":"none";
   }
   function emptyMsg(){ent.innerHTML='<div class="empty"><div class="big">🎙️</div><p>Chưa có nội dung. Nhấn <b>Bắt đầu ghi</b> để nói, hoặc <b>Thêm đoạn</b> để gõ tay.</p></div>';}
   function nodeOf(id){return ent.querySelector('.entry[data-id="'+id+'"]');}
@@ -809,7 +773,6 @@
     if(!entries.length)ent.innerHTML="";
     var e={id:uid(),time:nowTime(),speaker:speaker||"",text:""};
     if(kind){e.kind=kind;if(kind==="phancong"){e.who="";e.due="";}}
-    if(recording&&!SR)e.aStart=elapsed; // không có nhận giọng (iPhone): mốc nghe lại = lúc thêm đoạn
     entries.push(e);activeId=e.id;
     if($("search").value){$("search").value="";} // đang lọc tìm kiếm → bỏ lọc để thấy đoạn vừa thêm
     ent.appendChild(entryNode(e));setActiveClass();applySearch();
@@ -850,8 +813,8 @@
     if(a.type==="del"){entries.splice(a.index,0,a.entry);if(recording&&!activeId)activeId=a.entry.id;rebuildFrom();toast("Đã hoàn tác xóa.");}
     else if(a.type==="clear"){
       if(recording){undoStack.push(a);refreshUndo();toast("Đang ghi — bấm Tạm dừng trước khi khôi phục cuộc họp cũ.");return;}
-      audioStop();entries=a.entries;elapsed=a.elapsed;timerBase=elapsed;activeId=a.activeId||null;if(a.meetingId)meetingId=a.meetingId;
-      renderTimer();rebuildFrom();refreshAllPlay();setIdle();toast("Đã khôi phục nội dung và ghi âm.");}
+      entries=a.entries;elapsed=a.elapsed;timerBase=elapsed;activeId=a.activeId||null;
+      renderTimer();rebuildFrom();setIdle();toast("Đã khôi phục nội dung.");}
     refreshUndo();save();
   }
   function rebuildFrom(){render();setActiveClass();}
@@ -864,13 +827,9 @@
     if(autoCap)e.text=L.autoCapitalize(e.text);
     if(ta){ta.value=e.text;autoGrow(ta);}
   }
-  var utterStart=null; // giây (đồng hồ họp) lúc câu đang nói bắt đầu — lấy từ kết quả tạm đầu tiên
   function updateActiveText(finalChunk){
     var e=getActive();
     var n=nodeOf(e.id), ta=n?n.querySelector("[data-txt]"):null;
-    // mốc nghe lại: lần đầu đoạn này nhận chữ
-    if(typeof e.aStart!=="number"){e.aStart=Math.max(0,utterStart!==null?utterStart:elapsed-3);refreshPlayBtn(n,e);}
-    utterStart=null;
     // Đang gõ tay đúng đoạn này → đệm lại, nối sau khi rời ô (không đụng phần gõ tay)
     if(ta&&document.activeElement===ta){pendingChunk+=(pendingChunk?" ":"")+finalChunk;save();return;}
     pendingChunk+=(pendingChunk?" ":"")+finalChunk;
@@ -896,7 +855,6 @@
       retryN=0;if(lastError){lastError=null;banner("");}
       var arr=[];for(var i=0;i<ev.results.length;i++)arr.push({isFinal:ev.results[i].isFinal,transcript:ev.results[i][0].transcript});
       var out=L.extractSpeech(arr,ev.resultIndex);
-      if(out.interim&&utterStart===null)utterStart=elapsed;
       if(out.finalText)updateActiveText(out.finalText);
       liveTxt.textContent=out.interim?out.interim:(out.finalText?"…":"Đang nghe…");
     };
@@ -904,7 +862,7 @@
       lastError=ev.error;
       if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){wantRecord=false;clearTimeout(restartTimer);banner('<b>Chưa cấp quyền micro.</b> Bấm biểu tượng khóa 🔒 trên thanh địa chỉ → cho phép Microphone → tải lại trang.');setIdle();return;}
       if(ev.error==="network")banner('<b>Mất kết nối mạng.</b> Đang tự thử lại… Nội dung đã ghi vẫn giữ; nhận diện sẽ chạy tiếp khi có mạng.');
-      else if(ev.error==="audio-capture")banner(AUD.rec?'<b>Micro đang bị chiếm.</b> Một số điện thoại Android không cho vừa ghi âm vừa nhận giọng. Mở <b>⚙️ Tùy chọn nhận dạng</b> → tắt <b>Ghi âm song song</b>.':'<b>Không thấy micro.</b> Kiểm tra micro đang cắm/được chọn. Đang tự thử lại…');
+      else if(ev.error==="audio-capture")banner('<b>Không thấy micro.</b> Kiểm tra micro đang cắm/được chọn. Đang tự thử lại…');
     };
     r.onend=function(){
       stopping=false;
@@ -918,114 +876,21 @@
   function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();setActiveClass();}
 
   function startRec(){
-    var canAudio=AUD.supported&&$("optRec").checked;
-    if(!SR&&!canAudio){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
-    banner(SR?"":'<b>Trình duyệt này không chuyển giọng thành chữ</b> (cần Chrome). App vẫn <b>ghi âm</b> để anh nghe lại và gõ biên bản sau.');
-    if(SR)requestMic(false);
-    retryN=0;lastError=null;utterStart=null;clearTimeout(restartTimer);wantRecord=true;
-    if(SR){if(!rec)rec=buildRec();try{rec.start();}catch(e){}}
-    setLive();beginTimer();audioStart();
+    if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
+    banner("");requestMic(false);retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;
+    if(!rec)rec=buildRec();try{rec.start();}catch(e){}
+    setLive();beginTimer();
   }
   function flushActiveNow(){if(!pendingChunk)return;var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e){pendingChunk="";return;}var n=nodeOf(e.id),ta=n?n.querySelector("[data-txt]"):null;flushPending(e,ta);}
-  function pauseRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}audioPause();flushActiveNow();setIdle();saveNow();
-    if(AUD.rec)liveTxt.textContent="Đã tạm dừng — micro vẫn mở để ghi âm liền mạch. Bấm Kết thúc để tắt hẳn.";}
-  function stopRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}audioStop();flushActiveNow();setIdle();saveNow();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word, hoặc bấm ▶ ở từng đoạn để nghe lại.");}
+  function pauseRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();}
+  function stopRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
 
   function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});dl(name,blob);}
   function dlBytes(name,bytes,type){dl(name,new Blob([bytes],{type:type}));}
   function dl(name,blob){var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);}
 
-  // ===== Ghi âm song song + nghe lại từng đoạn (lưu trong máy: IndexedDB) =====
-  // Mỗi đoạn ghi âm (seg) gắn mã cuộc họp (mid). Không bao giờ đoán "cuộc mới" bằng đồng hồ.
-  var AUD=(function(){var ok=false;try{ok=!!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.indexedDB);}catch(e){ok=false;}
-    return {supported:ok,rec:null,stream:null,segs:[],dbP:null,playSeg:null,playN:0,url:null,on:false,saveWarned:false,gen:0};})();
-  var KEEP_MEETINGS=3; // giữ ghi âm của 3 cuộc họp gần nhất
-  function idb(){if(!AUD.dbP)AUD.dbP=new Promise(function(res,rej){var r=indexedDB.open("bien_ban_audio",1);
-    r.onupgradeneeded=function(){var db=r.result;db.createObjectStore("segs",{keyPath:"id"});db.createObjectStore("chunks",{autoIncrement:true});};
-    r.onsuccess=function(){res(r.result);};r.onerror=function(){AUD.dbP=null;rej(r.error);};});return AUD.dbP;}
-  function txDone(tx,res,rej){tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};tx.onabort=function(){rej(tx.error||new Error("abort"));};}
-  function idbPut(store,val){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction(store,"readwrite");tx.objectStore(store).put(val);txDone(tx,res,rej);});});}
-  function idbLoad(){return idb().then(function(db){return new Promise(function(res){
-    var tx=db.transaction(["segs","chunks"],"readonly"),segs=[],chunks=[];
-    tx.objectStore("segs").getAll().onsuccess=function(ev){segs=ev.target.result||[];};
-    tx.objectStore("chunks").openCursor().onsuccess=function(ev){var c=ev.target.result;if(c){chunks.push({key:c.primaryKey,v:c.value});c.continue();}};
-    tx.oncomplete=function(){segs.forEach(function(s){s.blobs=chunks.filter(function(c){return c.v.seg===s.id;}).sort(function(a,b){return a.v.i-b.v.i;}).map(function(c){return c.v.blob;});});res({segs:segs.filter(function(s){return s.blobs.length;}),chunks:chunks});};
-    tx.onerror=tx.onabort=function(){res({segs:[],chunks:[]});};});});}
-  // Xóa ghi âm của các cuộc họp cũ, chỉ giữ KEEP_MEETINGS cuộc gần nhất (+ cuộc hiện tại)
-  function idbPrune(all){
-    var last={};all.segs.forEach(function(s){var t=parseInt(String(s.id).slice(1),10)||0;if(!last[s.mid]||t>last[s.mid])last[s.mid]=t;});
-    var mids=Object.keys(last).sort(function(a,b){return last[b]-last[a];});
-    var keep={};mids.slice(0,KEEP_MEETINGS).forEach(function(m){keep[m]=1;});keep[meetingId]=1;
-    var dropSeg={};all.segs.forEach(function(s){if(!keep[s.mid])dropSeg[s.id]=1;});
-    if(!Object.keys(dropSeg).length)return Promise.resolve(all.segs);
-    return idb().then(function(db){return new Promise(function(res){var tx=db.transaction(["segs","chunks"],"readwrite");
-      Object.keys(dropSeg).forEach(function(id){tx.objectStore("segs").delete(id);});
-      all.chunks.forEach(function(c){if(dropSeg[c.v.seg])tx.objectStore("chunks").delete(c.key);});
-      tx.oncomplete=tx.onerror=tx.onabort=function(){res(all.segs.filter(function(s){return !dropSeg[s.id];}));};});});
-  }
-  function curSegs(){return AUD.segs.filter(function(s){return s.mid===meetingId;});}
-  function audioSaveFail(){if(AUD.saveWarned)return;AUD.saveWarned=true;banner('<b>Không lưu được ghi âm vào máy</b> (bộ nhớ đầy hoặc trình duyệt chặn). Ghi âm chỉ còn tới khi đóng trang — bấm <b>⭳ Tải ghi âm</b> để giữ. Chữ vẫn ghi bình thường.');}
-  function pickMime(){var c=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus"];for(var i=0;i<c.length;i++){try{if(MediaRecorder.isTypeSupported(c[i]))return c[i];}catch(e){}}return "";}
-  function markAudio(on){AUD.on=on;if(recording)$("statusTxt").textContent=on?"Đang ghi + ghi âm":"Đang ghi";}
-  function refreshAllPlay(){
-    entries.forEach(function(e){refreshPlayBtn(nodeOf(e.id),e);});
-    $("playerBar").style.display=curSegs().length?"flex":"none";
-  }
-  function audioStart(){
-    if(!AUD.supported||!$("optRec").checked)return;
-    if(AUD.rec&&AUD.rec.state==="paused"){try{AUD.rec.resume();markAudio(true);}catch(e){}return;}
-    if(AUD.rec&&AUD.rec.state==="recording")return;
-    var token=++AUD.gen, mid=meetingId;
-    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})
-    .then(function(stream){
-      // đã Tạm dừng/Kết thúc/tắt ghi âm/đổi cuộc họp trong lúc chờ quyền, hoặc đã có bộ ghi khác → bỏ
-      if(token!==AUD.gen||!wantRecord||!$("optRec").checked||mid!==meetingId||(AUD.rec&&AUD.rec.state!=="inactive")){stream.getTracks().forEach(function(t){t.stop();});return;}
-      var mime=pickMime(),opt={audioBitsPerSecond:24000},mr;if(mime)opt.mimeType=mime;
-      try{mr=new MediaRecorder(stream,opt);}catch(e){mr=new MediaRecorder(stream);}
-      var seg={id:"s"+Date.now(),mid:mid,base:0,dur:0,mime:mr.mimeType||mime||"audio/webm",blobs:[]},n=0;
-      AUD.rec=mr;AUD.stream=stream;
-      mr.ondataavailable=function(ev){
-        if(!ev.data||!ev.data.size)return;
-        seg.blobs.push(ev.data);seg.dur=Math.max(seg.dur,elapsed-seg.base);
-        idbPut("chunks",{seg:seg.id,i:n++,blob:ev.data}).catch(audioSaveFail);
-        idbPut("segs",{id:seg.id,mid:seg.mid,base:seg.base,dur:seg.dur,mime:seg.mime}).catch(function(){});
-        if(seg.blobs.length===1)refreshAllPlay();
-      };
-      mr.onstop=function(){stream.getTracks().forEach(function(t){t.stop();});if(AUD.rec===mr){AUD.rec=null;AUD.stream=null;}markAudio(false);};
-      seg.base=elapsed; // mốc = lúc THỰC SỰ bắt đầu ghi (sau khi có quyền micro), không phải lúc bấm
-      AUD.segs.push(seg);
-      mr.start(1000);markAudio(true);
-      if(!SR)liveTxt.textContent="Đang ghi âm… (trình duyệt này không chuyển thành chữ — gõ tay hoặc nghe lại sau)";
-    }).catch(function(){if(token===AUD.gen){markAudio(false);toast("Không ghi âm được (chưa cấp quyền micro). Chữ vẫn ghi bình thường.");}});
-  }
-  function audioPause(){AUD.gen++;if(AUD.rec&&AUD.rec.state==="recording"){try{AUD.rec.requestData();AUD.rec.pause();}catch(e){}}markAudio(false);}
-  function audioStop(){AUD.gen++;if(AUD.rec&&AUD.rec.state!=="inactive"){try{AUD.rec.stop();}catch(e){}}markAudio(false);}
-  // Tua tới đúng giây. File webm do MediaRecorder ghi không có độ dài → phải ép trình duyệt tính trước khi tua.
-  function seekPlay(a,t){
-    function go(){try{a.currentTime=t;}catch(e){}var p=a.play();if(p&&p.catch)p.catch(function(){});}
-    function ready(){if(isFinite(a.duration))go();else{a.ontimeupdate=function(){a.ontimeupdate=null;go();};try{a.currentTime=1e101;}catch(e){go();}}}
-    if(a.readyState>=1)ready();else a.onloadedmetadata=function(){a.onloadedmetadata=null;ready();};
-  }
-  function playAt(t){
-    var r=L.findSegment(curSegs(),t);if(!r){toast("Đoạn này không có ghi âm.");return;}
-    var a=$("player"),seg=r.seg;$("playerBar").style.display="flex";
-    if(AUD.playSeg!==seg.id||AUD.playN!==seg.blobs.length){ // ghi âm đang dài thêm → dựng lại nguồn phát
-      if(AUD.url)URL.revokeObjectURL(AUD.url);
-      AUD.url=URL.createObjectURL(new Blob(seg.blobs,{type:seg.mime}));AUD.playSeg=seg.id;AUD.playN=seg.blobs.length;
-      a.src=AUD.url;a.load();
-    }
-    seekPlay(a,Math.max(0,r.offset-2)); // lùi 2 giây cho nghe trọn câu
-  }
-  function audioExt(m){return /mp4|m4a|aac/.test(m)?".m4a":/ogg/.test(m)?".ogg":".webm";}
-  $("btnDlAudio").addEventListener("click",function(){
-    var segs=curSegs().slice().sort(function(a,b){return a.base-b.base;});
-    if(!segs.length){toast("Chưa có ghi âm.");return;}
-    var stem=L.fileStem(meta())+"_ghi_am";
-    segs.forEach(function(s,i){setTimeout(function(){dl(stem+(segs.length>1?"_"+(i+1):"")+audioExt(s.mime),new Blob(s.blobs,{type:s.mime}));},i*500);});
-    toast(segs.length>1?"Đang tải "+segs.length+" file ghi âm (mỗi lần mở lại trang là 1 file).":"Đã tải file ghi âm.");
-  });
-  $("optRec").addEventListener("change",function(){if(!$("optRec").checked)audioStop();else if(recording)audioStart();save();});
-  if(!AUD.supported){$("optRec").checked=false;$("optRec").disabled=true;$("recHint").textContent="Trình duyệt này không hỗ trợ ghi âm.";}
+  // Dọn ghi âm do bản v2.2 lưu trong máy (bản này không ghi âm nữa) → giải phóng bộ nhớ
+  try{if(window.indexedDB)indexedDB.deleteDatabase("bien_ban_audio");}catch(e){}
 
   // ===== Tự xin quyền micro + GPS =====
   var micGranted=false, gpsDone=false, gpsAsked=false;
@@ -1067,12 +932,11 @@
   $("btnPC").addEventListener("click",function(){addEntry("",!recording,"phancong");if(recording)liveTxt.textContent="Đang ghi vào PHÂN CÔNG…";});
   $("btnClear").addEventListener("click",function(){
     if(recording){toast("Đang ghi — bấm Tạm dừng hoặc Kết thúc trước khi xóa.");return;}
-    if(!entries.length&&!curSegs().length)return;
-    if(!confirm("Xóa toàn bộ nội dung để bắt đầu cuộc họp mới?\n(Bấm Hoàn tác để lấy lại, kể cả ghi âm.)"))return;
-    audioStop(); // tắt hẳn bộ ghi của cuộc cũ (kể cả đang tạm dừng) → cuộc mới không ghi nối vào file cũ
-    pushUndo({type:"clear",entries:entries.slice(),elapsed:elapsed,activeId:activeId,meetingId:meetingId});
-    entries=[];activeId=null;elapsed=0;timerBase=0;meetingId=newMeetingId();
-    renderTimer();render();refreshAllPlay();setIdle();saveNow();toast("Đã xóa hết — bấm Hoàn tác nếu lỡ tay.");
+    if(!entries.length)return;
+    if(!confirm("Xóa toàn bộ nội dung để bắt đầu cuộc họp mới?\n(Bấm Hoàn tác để lấy lại.)"))return;
+    pushUndo({type:"clear",entries:entries.slice(),elapsed:elapsed,activeId:activeId});
+    entries=[];activeId=null;elapsed=0;timerBase=0;
+    renderTimer();render();setIdle();saveNow();toast("Đã xóa hết — bấm Hoàn tác nếu lỡ tay.");
   });
   $("btnUndo").addEventListener("click",doUndo);
   $("search").addEventListener("input",applySearch);
@@ -1089,7 +953,7 @@
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
   // ===== Tự kiểm tra phiên bản mới =====
-  var APP_VERSION="2.2";
+  var APP_VERSION="2.3";
   var VERSION_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/version.json";
   var PAGES_URL="https://neo-era.github.io/bien-ban-hop/";
   var RAW_HTML_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/index.html";
@@ -1130,19 +994,6 @@
   document.addEventListener("visibilitychange",function(){if(!document.hidden)checkUpdate();});
 
   load();if(!$("optDict").value.trim())$("optDict").value=DEFAULT_DICT;dict=L.parseDict($("optDict").value);render();renderTimer();setIdle();
-  if(!meetingId){meetingId=newMeetingId();save();}
-  if(AUD.supported){
-    var recBtn=$("btnRec"),unlock=function(){recBtn.disabled=false;},lockT=setTimeout(unlock,4000);
-    recBtn.disabled=true; // khóa ngắn khi nạp ghi âm cũ → mốc đồng hồ không lệch
-    idbLoad().then(idbPrune).then(function(segs){
-      var have={};segs.forEach(function(s){have[s.id]=1;});
-      AUD.segs=segs.concat(AUD.segs.filter(function(s){return !have[s.id];})); // gộp, không đè đoạn đang ghi
-      // Tab bị đóng đột ngột → đồng hồ đã lưu có thể cũ hơn ghi âm → kéo đồng hồ lên cho liền mạch
-      var end=0;curSegs().forEach(function(s){end=Math.max(end,s.base+(s.dur||0));});
-      if(!recording&&end>elapsed){elapsed=end;timerBase=end;renderTimer();setIdle();save();}
-      refreshAllPlay();
-    }).catch(function(){}).then(function(){clearTimeout(lockT);unlock();});
-  }
   askPermissions();
   var onceGesture=function(){askPermissions();document.removeEventListener("pointerdown",onceGesture);};
   document.addEventListener("pointerdown",onceGesture);

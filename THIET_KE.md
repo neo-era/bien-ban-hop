@@ -78,6 +78,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.3: BỎ ghi âm theo yêu cầu — chỉ nói → ra chữ trực tiếp (Web Speech, Chrome). Gỡ MediaRecorder/IndexedDB,
+  nút ▶, thanh nghe lại, tùy chọn ghi âm, findSegment. Tự xóa database "bien_ban_audio" do v2.2 để lại.
+  Giữ: Kết luận/Phân công, khối ký không xé trang, đồng hồ chốt giây + tự lưu ~5s, giữ câu cuối khi dừng,
+  không cho Xóa hết khi đang ghi. E2E mới: src/e2e_live.py (kiểm cả việc không tạo bộ ghi âm, micro tắt hẳn).
 - v2.2: (1) GHI ÂM SONG SONG + NGHE LẠI: MediaRecorder 24kbps (~10MB/giờ) lưu IndexedDB; mỗi đoạn có nút ▶
   tua đúng lúc người đó nói (mốc aStart lấy từ kết quả tạm đầu tiên). Chạy được cả iPhone (không có nhận giọng
   vẫn ghi âm). Tải file ghi âm. (2) Nút ＋ Kết luận / ＋ Phân công (việc–người–hạn) → Word có mục KẾT LUẬN và
