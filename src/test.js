@@ -451,3 +451,110 @@ test("plainText/wordHtml: Địa điểm ghi đủ địa chỉ, dòng ngày ch�
   assert.ok(!html.includes("Bến Thành, Thành phố Hồ Chí Minh, ngày"));
   assert.ok(html.includes("Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh</p>"));
 });
+
+// ---------- v2.6: iPhone (Siri) + ghi chữ tạm khi phiên kết thúc ----------
+test("flush: chữ tạm chưa chốt được trả về để ghi; gọi lại → rỗng (I2)", () => {
+  const tr = L.createSpeechTracker({});
+  tr.feed(R(["hôm nay họp", true]), 0);
+  tr.feed(R(["hôm nay họp", true], ["tiến độ chậm", false]), 1);
+  assert.strictEqual(tr.flush(), "tiến độ chậm");
+  assert.strictEqual(tr.flush(), "");
+});
+test("flush: không có chữ tạm → rỗng; null an toàn", () => {
+  const tr = L.createSpeechTracker({});
+  assert.strictEqual(tr.flush(), "");
+  tr.feed(null, 0);
+  assert.strictEqual(tr.flush(), "");
+});
+test("flush rồi câu chốt y hệt đến trễ (sau Tạm dừng) → không ghi lần 2", () => {
+  const tr = L.createSpeechTracker({});
+  tr.feed(R(["chốt lại nhé", false]), 0);
+  assert.strictEqual(tr.flush(true), "chốt lại nhé");
+  assert.strictEqual(tr.feed(R(["Chốt lại nhé.", true]), 0).finalText, "");
+});
+test("flush rồi câu chốt dài hơn đến trễ → chỉ thêm phần đuôi", () => {
+  const tr = L.createSpeechTracker({});
+  tr.feed(R(["chốt lại", false]), 0);
+  tr.flush(true); // Tạm dừng/Kết thúc
+  assert.strictEqual(tr.feed(R(["chốt lại nhé", true]), 0).finalText, "nhé");
+});
+test("flush rồi câu mới khác hẳn → ghi đủ (không cắt bừa)", () => {
+  const tr = L.createSpeechTracker({});
+  tr.feed(R(["chốt lại", false]), 0);
+  tr.flush();
+  assert.strictEqual(tr.feed(R(["sang mục hai", true]), 0).finalText, "sang mục hai");
+});
+test("iPhone: chữ tạm lớn dần ở cùng vị trí, flush nhiều lần → mỗi lần chỉ phần mới (I3)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true, sameIndexGrow: true });
+  tr.feed(R(["hôm nay", false]), 0);
+  tr.feed(R(["hôm nay họp", false]), 0);
+  assert.strictEqual(tr.flush(), "hôm nay họp");
+  const r = tr.feed(R(["hôm nay họp về tiến độ", false]), 0);
+  assert.strictEqual(r.interim, "về tiến độ"); // thanh "Đang nghe" chỉ hiện phần chưa ghi
+  assert.strictEqual(tr.flush(), "về tiến độ");
+  assert.strictEqual(tr.feed(R(["hôm nay họp về tiến độ", true]), 0).finalText, ""); // Siri chốt cả câu → đã ghi rồi
+});
+test("iPhone: câu chốt ở cùng vị trí lớn dần → chỉ thêm phần mới (I3)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true, sameIndexGrow: true });
+  assert.strictEqual(tr.feed(R(["Hôm nay họp", true]), 0).finalText, "Hôm nay họp");
+  assert.strictEqual(tr.feed(R(["Hôm nay họp về Sapulico", true]), 0).finalText, "về Sapulico");
+});
+test("iPhone: Siri sửa chữ phía trước (không còn khớp trọn) → ghi lại cả câu (thà lặp)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true, sameIndexGrow: true });
+  tr.feed(R(["kiểm tra đèn lét", true]), 0);
+  assert.strictEqual(tr.feed(R(["kiểm tra đèn LED quận 8", true]), 0).finalText, "kiểm tra đèn LED quận 8");
+});
+test("không bật sameIndexGrow (máy tính/Android): câu mới ở vị trí 0 mở đầu bằng câu trước → giữ nguyên", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["vâng", true]), 0);
+  assert.strictEqual(tr.feed(R(["vâng em hiểu rồi", true]), 0).finalText, "vâng em hiểu rồi");
+});
+test("reset sau flush → phiên mới không bị cắt theo phần đã flush", () => {
+  const tr = L.createSpeechTracker({ cumulative: true, sameIndexGrow: true });
+  tr.feed(R(["tiếp tục", false]), 0);
+  tr.flush();
+  tr.reset();
+  assert.strictEqual(tr.feed(R(["tiếp tục bàn", true]), 0).finalText, "tiếp tục bàn");
+});
+
+// ---- review độc lập v2.6: không mất câu ngắn, không lặp ----
+const IOS = { cumulative: true, sameIndexGrow: true };
+test("iPhone: vị trí 0 được dùng lại (có chữ tạm chen giữa) → 'Đồng ý' lần 2 vẫn ghi", () => {
+  for (const o of [IOS, {}]) {
+    const tr = L.createSpeechTracker(o);
+    assert.strictEqual(tr.feed(R(["Đồng ý", true]), 0).finalText, "Đồng ý");
+    tr.feed(R(["tiếp", false]), 0);
+    assert.strictEqual(tr.feed(R(["Đồng ý", true]), 0).finalText, "Đồng ý");
+  }
+});
+test("iPhone: câu trước ngắn (<3 từ) → câu mới mở đầu bằng nó vẫn giữ đủ", () => {
+  let tr = L.createSpeechTracker(IOS);
+  tr.feed(R(["Vâng", false]), 0); tr.flush();
+  assert.strictEqual(tr.feed(R(["Vâng tôi đồng ý", true]), 0).finalText, "Vâng tôi đồng ý");
+  tr = L.createSpeechTracker(IOS);
+  tr.feed(R(["Được", true]), 0);
+  assert.strictEqual(tr.feed(R(["Được rồi làm tiếp", true]), 0).finalText, "Được rồi làm tiếp");
+  tr = L.createSpeechTracker(IOS);
+  tr.feed(R(["Đồng ý", true]), 0);
+  assert.strictEqual(tr.feed(R(["Đồng ý", true], ["Đồng ý với phương án", true]), 1).finalText, "Đồng ý với phương án");
+});
+test("flush dùng được bằng chứng gửi dồn (câu chốt ngay trước) → không ghi lặp", () => {
+  const tr = L.createSpeechTracker(IOS);
+  assert.strictEqual(tr.feed(R(["họp về tiến độ", true], ["họp về tiến độ gói thầu", false]), 0).finalText, "họp về tiến độ");
+  assert.strictEqual(tr.flush(), "gói thầu");
+  const an = L.createSpeechTracker({ cumulative: true });
+  an.feed(R(["xin chào mọi người", true], ["xin chào mọi người hôm nay", false]), 0);
+  assert.strictEqual(an.flush(), "hôm nay");
+});
+test("Tạm dừng khi có nhiều chữ tạm, sau đó Chrome chốt từng phần → không lặp", () => {
+  const tr = L.createSpeechTracker({});
+  tr.feed(R(["xin chào", false], [" các bạn", false]), 0);
+  assert.strictEqual(tr.flush(true), "xin chào các bạn");
+  assert.strictEqual(tr.feed(R(["xin chào", true], [" các bạn", false]), 0).finalText, "");
+  assert.strictEqual(tr.flush(true), "");
+});
+test("đang ghi (không phải Tạm dừng): câu mới nằm trong phần vừa flush vẫn ghi", () => {
+  const tr = L.createSpeechTracker(IOS);
+  tr.feed(R(["đồng ý với phương án", false]), 0); tr.flush();
+  assert.strictEqual(tr.feed(R(["phương án", true]), 0).finalText, "phương án");
+});

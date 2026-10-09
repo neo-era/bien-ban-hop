@@ -78,6 +78,9 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.6: iPhone "câu đầu ghi được, sau đó rất khó nhận dạng": iOS không mở thêm luồng micro (getUserMedia) nữa;
+  chữ tạm Siri không chốt → tự ghi khi đứng yên 1,5 s; mọi máy: chữ tạm còn lại khi phiên kết thúc / Tạm dừng /
+  Kết thúc được ghi (trước đây mất). Nhật ký chẩn đoán: giữ nhãn phiên bản ~1 s. Chi tiết: mục 12 "Thiết kế D".
 - v2.5: Địa điểm từ GPS = địa chỉ cụ thể theo đơn vị hành chính 2 cấp (01/7/2025), không còn "GPS x, y" thô
   (Photon điền nhanh → Overpass chuẩn hóa Phường/Xã/Đặc khu). Từ chối 0,0 / ngoài VN / sai số >1 km; luôn lấy vị trí
   mới (bỏ maximumAge 60 s từng trả lại 0,0 cũ). Tự gỡ tọa độ thô đã lưu từ bản cũ. Dòng "địa danh, ngày…" trong Word
@@ -184,6 +187,25 @@ G4 Photon hiện ngay, Overpass chạy song song rồi chuẩn hóa phường/x�
 - Mở app mà tra lỗi → im lặng (không làm phiền mỗi lần mở); bấm 📍 mà lỗi → báo nhập tay.
 - Hạn chế còn lại: từ máy anh overpass-api.de trả 406 cho mọi yêu cầu → thực tế chỉ còn maps.mail.ru (~15 s).
   Overpass lỗi + Photon thiếu tiền tố → tạm ghi "Phường" (vd Phú Quốc tạm "Phường", Overpass về mới thành "Đặc khu").
+
+### Thiết kế D — iPhone: "câu đầu ghi được, sau đó rất khó nhận dạng" (v2.6)
+Trên iPhone mọi trình duyệt dùng WebKit + nhận dạng của Apple (Siri), khác Chrome. Không giả lập được trên Windows.
+Tiêu chí (đã duyệt): I1 iPhone không gọi `getUserMedia` khi bắt đầu/đang ghi · I2 chữ tạm chưa chốt được ghi khi
+phiên kết thúc / Tạm dừng / Kết thúc (mọi máy) · I3 iPhone gửi dồn → chỉ thêm phần mới (thà lặp hơn mất chữ) ·
+I4 nhật ký chẩn đoán (giữ nhãn phiên bản) để anh gửi về · I5 máy tính/Android không đổi, test cũ pass.
+- Nghi vấn 1: `requestMic` mở rồi tắt luồng micro song song lúc nhận giọng nói khởi động → trên iOS tắt luồng đó
+  làm phiên âm thanh của Siri bị cắt/yếu sau câu đầu. → iOS bỏ hẳn `requestMic` (Siri tự xin quyền micro).
+- Nghi vấn 2: Siri hay để chữ ở dạng tạm (isFinal=false), chữ chỉ hiện ở thanh "Đang nghe…" rồi mất.
+  → `tracker.flush()` trả phần chữ tạm chưa ghi; gọi ở onend, Tạm dừng, Kết thúc; riêng iOS còn gọi khi chữ tạm
+  đứng yên 1,5 s.
+- Sau khi flush, câu chốt/chữ tạm đến sau mà mở đầu bằng TRỌN phần đã flush → chỉ lấy đuôi (chống lặp câu cuối khi
+  Chrome gửi trễ). `sameIndexGrow` (chỉ iOS): kết quả ở CÙNG vị trí lớn dần ("A" → "A B") → chỉ lấy đuôi.
+- Review độc lập (đã sửa, có test): câu ngắn ("Vâng", "Đồng ý", "Được") bị cắt/bỏ → phần đã ghi <3 từ thì KHÔNG
+  cắt (trừ lúc Tạm dừng/Kết thúc = `flush(true)`, khi đó mọi thứ đến sau chỉ là bản gửi trễ); vị trí có chữ tạm mới
+  = vị trí bị dùng lại → quên câu chốt cũ ở đó; flush mang theo câu chốt ngay trước làm bằng chứng gửi dồn.
+- Tự ghi khi đứng yên: 2,5 s, chỉ khi ≥3 từ, chỉ hẹn lại khi chữ tạm ĐỔI (Siri gửi lặp lúc im lặng). Siri sửa chữ
+  sau khi đã tự ghi ("năm giờ" → "5 giờ") → có thể lặp một đoạn (đã chấp nhận: thà lặp).
+- Nhật ký: giữ nhãn ~1 s hoặc chạm nhanh 5 lần (iOS giữ lâu dễ thành bôi đen chữ). Nhật ký chứa nội dung lời nói.
 
 ## 13. Quy trình phát hành bản mới (để app tự báo cập nhật)
 1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).

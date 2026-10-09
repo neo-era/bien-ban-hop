@@ -49,36 +49,62 @@
       return { o: o, n: o.toLowerCase().replace(/[.,!?;:…"'“”()\[\]\-–—]/g, "") };
     }).filter(function (w) { return w.n; });
   }
+  // flush(): trả phần chữ tạm (chưa chốt) chưa ghi — gọi khi phiên kết thúc / Tạm dừng; iPhone (Siri) hay
+  // không chốt câu nên còn gọi khi chữ tạm đứng yên. sameIndexGrow (iPhone): kết quả cùng vị trí lớn dần.
   function createSpeechTracker(opts) {
-    var cumulative = !!(opts && opts.cumulative);
-    var byIndex = {}, last = [];
+    var cumulative = !!(opts && opts.cumulative), sameIndexGrow = !!(opts && opts.sameIndexGrow);
+    var byIndex = {}, last = [], lastIdx = -1, fromFlush = false, closing = false, pending = null;
     function key(ws) { return ws.map(function (w) { return w.n; }).join(" "); }
-    // Thà lặp còn hơn mất chữ: chỉ cắt khi có bằng chứng gửi dồn — câu chốt trước nằm ngay
-    // trước trong cùng danh sách kết quả, và câu mới mở đầu bằng TRỌN câu đó.
-    // Trả null = không cắt (giữ nguyên văn).
-    function newPart(ws, prev) {
-      if (!cumulative || !last.length || !prev || !prev.isFinal) return null;
-      if (key(wordsOf(prev.transcript)) !== key(last)) return null;
-      for (var k = 0; k < last.length; k++) if (!ws[k] || ws[k].n !== last[k].n) return null;
-      return ws.slice(last.length);
+    function startsWithLast(ws) {
+      if (!last.length || ws.length < last.length) return false;
+      for (var k = 0; k < last.length; k++) if (ws[k].n !== last[k].n) return false;
+      return true;
+    }
+    function inLast(ws) { return (" " + key(last) + " ").indexOf(" " + key(ws) + " ") >= 0; }
+    function text(ws) { return ws.map(function (w) { return w.o; }).join(" "); }
+    // Thà lặp còn hơn mất chữ: chỉ cắt khi mở đầu bằng TRỌN phần đã ghi VÀ có bằng chứng đó là bản gửi dồn.
+    // Câu ngắn (<3 từ: "Vâng", "Đồng ý") không phân biệt được với câu mới mở đầu y hệt → không cắt,
+    // trừ lúc vừa Tạm dừng/Kết thúc (closing): khi đó chỉ còn là bản Chrome/Siri gửi trễ.
+    function canStrip(ws, i, prev) {
+      if (!startsWithLast(ws)) return false;
+      if (closing) return true;
+      if (last.length < 3) return false;
+      if (fromFlush || (sameIndexGrow && i === lastIdx)) return true;
+      return cumulative && !!prev && !!prev.isFinal && key(wordsOf(prev.transcript)) === key(last);
     }
     return {
-      reset: function () { byIndex = {}; last = []; },
+      reset: function () { byIndex = {}; last = []; lastIdx = -1; fromFlush = false; closing = false; pending = null; },
       feed: function (results, idx) {
-        var fin = [], interim = "";
+        var fin = [], interim = "", pIdx = -1, pRaw = "";
         results = results || [];
         for (var i = idx || 0; i < results.length; i++) {
           var r = results[i];
-          if (!r.isFinal) { interim += r.transcript || ""; continue; }
+          if (!r.isFinal) { if (pIdx < 0) pIdx = i; pRaw += r.transcript || ""; delete byIndex[i]; continue; } // vị trí bị dùng lại cho câu mới
           var ws = wordsOf(r.transcript);
           if (!ws.length || byIndex[i] === key(ws)) continue;
           byIndex[i] = key(ws);
-          var part = newPart(ws, results[i - 1]);
-          last = ws;
-          if (!part) fin.push(String(r.transcript).trim());
-          else if (part.length) fin.push(part.map(function (w) { return w.o; }).join(" "));
+          if (closing && fromFlush && inLast(ws)) continue; // một phần của đoạn vừa ghi lúc Tạm dừng, gửi trễ
+          var strip = canStrip(ws, i, results[i - 1]), part = strip ? ws.slice(last.length) : null;
+          last = ws; lastIdx = i; fromFlush = false;
+          if (!strip) fin.push(String(r.transcript).trim());
+          else if (part.length) fin.push(text(part));
         }
+        pending = pRaw.trim() ? { idx: pIdx, raw: pRaw, prev: results[pIdx - 1] } : null;
+        interim = pRaw;
+        if (pending) { var iw = wordsOf(pRaw); if (canStrip(iw, pIdx, pending.prev)) interim = text(iw.slice(last.length)); }
         return { finalText: fin.join(" "), interim: interim };
+      },
+      // isClosing = true khi Tạm dừng / Kết thúc
+      flush: function (isClosing) {
+        var p = pending;
+        pending = null;
+        if (isClosing) closing = true;
+        if (!p) return "";
+        var ws = wordsOf(p.raw);
+        if (!ws.length || (closing && fromFlush && inLast(ws))) return "";
+        var out = canStrip(ws, p.idx, p.prev) ? text(ws.slice(last.length)) : text(ws);
+        last = ws; lastIdx = p.idx; fromFlush = true;
+        return out;
       }
     };
   }

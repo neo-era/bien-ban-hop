@@ -19,7 +19,7 @@
   .glyph{width:34px;height:34px;border-radius:9px;flex:0 0 auto;background:linear-gradient(135deg,var(--amber),#f59e0b);display:grid;place-items:center;font-weight:800;color:#1e293b;font-size:15px}
   .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px}
   .brand p{font-size:11.5px;color:#94a3b8;font-weight:500}
-  .ver{display:inline-block;font-size:10px;font-weight:600;color:#cbd5e1;background:rgba(255,255,255,.12);padding:1px 7px;border-radius:999px;margin-left:7px;vertical-align:middle;letter-spacing:.3px}
+  .ver{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:inline-block;font-size:10px;font-weight:600;color:#cbd5e1;background:rgba(255,255,255,.12);padding:1px 7px;border-radius:999px;margin-left:7px;vertical-align:middle;letter-spacing:.3px}
   .status{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.08);padding:6px 12px;border-radius:999px;white-space:nowrap}
   .dot{width:9px;height:9px;border-radius:50%;background:#64748b;flex:0 0 auto}
   .status.live .dot{background:var(--rec);animation:pulse 1.2s infinite}
@@ -113,6 +113,10 @@
 </header>
 
 <div class="banner" id="banner"></div>
+<div id="diagBar" style="display:none;margin:14px 20px 0;padding:10px 14px;border-radius:10px;font-size:13.5px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+  <span>🩺 Đang ghi nhật ký chẩn đoán — <b id="diagCount">0 dòng</b>. Ghi thử 1–2 phút rồi bấm Sao chép, gửi lại. <i>Nhật ký có chứa nội dung lời nói.</i></span>
+  <span style="display:flex;gap:8px"><button id="diagCopy" class="btn btn-sm" style="background:#4f46e5;color:#fff">Sao chép nhật ký</button><button id="diagOff" class="btn btn-ghost btn-sm">Tắt</button></span>
+</div>
 <div id="updateBar" style="display:none;margin:14px 20px 0;padding:11px 14px;border-radius:10px;font-size:13.5px;line-height:1.5;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
   <span id="updateMsg" style="flex:1;min-width:200px"></span>
   <span style="display:flex;gap:8px;flex-wrap:wrap">
@@ -257,36 +261,62 @@
       return { o: o, n: o.toLowerCase().replace(/[.,!?;:…"'“”()\[\]\-–—]/g, "") };
     }).filter(function (w) { return w.n; });
   }
+  // flush(): trả phần chữ tạm (chưa chốt) chưa ghi — gọi khi phiên kết thúc / Tạm dừng; iPhone (Siri) hay
+  // không chốt câu nên còn gọi khi chữ tạm đứng yên. sameIndexGrow (iPhone): kết quả cùng vị trí lớn dần.
   function createSpeechTracker(opts) {
-    var cumulative = !!(opts && opts.cumulative);
-    var byIndex = {}, last = [];
+    var cumulative = !!(opts && opts.cumulative), sameIndexGrow = !!(opts && opts.sameIndexGrow);
+    var byIndex = {}, last = [], lastIdx = -1, fromFlush = false, closing = false, pending = null;
     function key(ws) { return ws.map(function (w) { return w.n; }).join(" "); }
-    // Thà lặp còn hơn mất chữ: chỉ cắt khi có bằng chứng gửi dồn — câu chốt trước nằm ngay
-    // trước trong cùng danh sách kết quả, và câu mới mở đầu bằng TRỌN câu đó.
-    // Trả null = không cắt (giữ nguyên văn).
-    function newPart(ws, prev) {
-      if (!cumulative || !last.length || !prev || !prev.isFinal) return null;
-      if (key(wordsOf(prev.transcript)) !== key(last)) return null;
-      for (var k = 0; k < last.length; k++) if (!ws[k] || ws[k].n !== last[k].n) return null;
-      return ws.slice(last.length);
+    function startsWithLast(ws) {
+      if (!last.length || ws.length < last.length) return false;
+      for (var k = 0; k < last.length; k++) if (ws[k].n !== last[k].n) return false;
+      return true;
+    }
+    function inLast(ws) { return (" " + key(last) + " ").indexOf(" " + key(ws) + " ") >= 0; }
+    function text(ws) { return ws.map(function (w) { return w.o; }).join(" "); }
+    // Thà lặp còn hơn mất chữ: chỉ cắt khi mở đầu bằng TRỌN phần đã ghi VÀ có bằng chứng đó là bản gửi dồn.
+    // Câu ngắn (<3 từ: "Vâng", "Đồng ý") không phân biệt được với câu mới mở đầu y hệt → không cắt,
+    // trừ lúc vừa Tạm dừng/Kết thúc (closing): khi đó chỉ còn là bản Chrome/Siri gửi trễ.
+    function canStrip(ws, i, prev) {
+      if (!startsWithLast(ws)) return false;
+      if (closing) return true;
+      if (last.length < 3) return false;
+      if (fromFlush || (sameIndexGrow && i === lastIdx)) return true;
+      return cumulative && !!prev && !!prev.isFinal && key(wordsOf(prev.transcript)) === key(last);
     }
     return {
-      reset: function () { byIndex = {}; last = []; },
+      reset: function () { byIndex = {}; last = []; lastIdx = -1; fromFlush = false; closing = false; pending = null; },
       feed: function (results, idx) {
-        var fin = [], interim = "";
+        var fin = [], interim = "", pIdx = -1, pRaw = "";
         results = results || [];
         for (var i = idx || 0; i < results.length; i++) {
           var r = results[i];
-          if (!r.isFinal) { interim += r.transcript || ""; continue; }
+          if (!r.isFinal) { if (pIdx < 0) pIdx = i; pRaw += r.transcript || ""; delete byIndex[i]; continue; } // vị trí bị dùng lại cho câu mới
           var ws = wordsOf(r.transcript);
           if (!ws.length || byIndex[i] === key(ws)) continue;
           byIndex[i] = key(ws);
-          var part = newPart(ws, results[i - 1]);
-          last = ws;
-          if (!part) fin.push(String(r.transcript).trim());
-          else if (part.length) fin.push(part.map(function (w) { return w.o; }).join(" "));
+          if (closing && fromFlush && inLast(ws)) continue; // một phần của đoạn vừa ghi lúc Tạm dừng, gửi trễ
+          var strip = canStrip(ws, i, results[i - 1]), part = strip ? ws.slice(last.length) : null;
+          last = ws; lastIdx = i; fromFlush = false;
+          if (!strip) fin.push(String(r.transcript).trim());
+          else if (part.length) fin.push(text(part));
         }
+        pending = pRaw.trim() ? { idx: pIdx, raw: pRaw, prev: results[pIdx - 1] } : null;
+        interim = pRaw;
+        if (pending) { var iw = wordsOf(pRaw); if (canStrip(iw, pIdx, pending.prev)) interim = text(iw.slice(last.length)); }
         return { finalText: fin.join(" "), interim: interim };
+      },
+      // isClosing = true khi Tạm dừng / Kết thúc
+      flush: function (isClosing) {
+        var p = pending;
+        pending = null;
+        if (isClosing) closing = true;
+        if (!p) return "";
+        var ws = wordsOf(p.raw);
+        if (!ws.length || (closing && fromFlush && inLast(ws))) return "";
+        var out = canStrip(ws, p.idx, p.prev) ? text(ws.slice(last.length)) : text(ws);
+        last = ws; lastIdx = p.idx; fromFlush = true;
+        return out;
       }
     };
   }
@@ -991,11 +1021,18 @@
   function nearBottom(n){var r=n.getBoundingClientRect();return r.top<(window.innerHeight||800)+120;}
 
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  var tracker=L.createSpeechTracker({cumulative:/Android/i.test(navigator.userAgent)}); // Android hay gửi lặp / gửi dồn câu
+  // iPhone/iPad: mọi trình duyệt là WebKit + nhận dạng của Apple (Siri). iPadOS báo là Mac nên xét thêm cảm ứng.
+  var isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  var tracker=L.createSpeechTracker({cumulative:isIOS||/Android/i.test(navigator.userAgent),sameIndexGrow:isIOS}); // Android/iPhone hay gửi lặp / gửi dồn câu
+  var diag=null; // nhật ký chẩn đoán (null = tắt)
+  function dlog(s){if(!diag)return;diag.push(new Date().toTimeString().slice(0,8)+"."+String(Date.now()%1000).padStart(3,"0")+" "+s);if(diag.length>800)diag.shift();var c=$("diagCount");if(c)c.textContent=diag.length+" dòng";}
+  var idleT; // iPhone: chữ tạm đứng yên → ghi luôn (Siri hay không chốt câu)
+  var lastInterim="";
+  function commitPending(why,closing){clearTimeout(idleT);lastInterim="";var t=tracker.flush(!!closing);if(t){dlog("flush("+why+"): "+t);updateActiveText(t);}}
   function tryStart(){
     if(!wantRecord)return;
-    try{rec.start();}
-    catch(e){retryN++;if(retryN>10){wantRecord=false;setIdle();banner('<b>Không khởi động lại được nhận diện giọng nói.</b> Nội dung đã ghi vẫn còn — hãy tải lại trang rồi bấm "Ghi tiếp".');return;}restartTimer=setTimeout(tryStart,Math.min(400*Math.pow(2,retryN),5000));}
+    try{rec.start();dlog("start (tự bật lại)");}
+    catch(e){dlog("start lỗi: "+e.message);retryN++;if(retryN>10){wantRecord=false;setIdle();banner('<b>Không khởi động lại được nhận diện giọng nói.</b> Nội dung đã ghi vẫn còn — hãy tải lại trang rồi bấm "Ghi tiếp".');return;}restartTimer=setTimeout(tryStart,Math.min(400*Math.pow(2,retryN),5000));}
   }
   function buildRec(){
     var r=new SR();r.lang="vi-VN";r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
@@ -1003,19 +1040,25 @@
       if(!wantRecord&&!stopping)return; // đang dừng: vẫn nhận nốt câu cuối Chrome trả về
       var arr=[];for(var i=0;i<ev.results.length;i++)arr.push({isFinal:ev.results[i].isFinal,transcript:ev.results[i][0].transcript});
       var out=tracker.feed(arr,ev.resultIndex);
+      if(diag)dlog("result idx="+ev.resultIndex+" ["+arr.map(function(x,k){return k+(x.isFinal?"F":"t")+":"+x.transcript;}).join(" | ")+"] → ghi: "+JSON.stringify(out.finalText));
       if(!wantRecord){if(out.finalText){updateActiveText(out.finalText);saveNow();}return;}
       retryN=0;if(lastError){lastError=null;banner("");}
       if(out.finalText)updateActiveText(out.finalText);
       liveTxt.textContent=out.interim?out.interim:(out.finalText?"…":"Đang nghe…");
+      // chỉ hẹn lại khi chữ tạm đổi (Siri gửi lặp y hệt lúc im lặng không được làm lùi hẹn); <3 từ thì chờ hết phiên
+      if(isIOS&&out.interim!==lastInterim){lastInterim=out.interim;clearTimeout(idleT);
+        if(out.interim.trim().split(/\s+/).length>=3)idleT=setTimeout(function(){if(wantRecord){commitPending("đứng yên");liveTxt.textContent="Đang nghe…";}},2500);}
     };
+    ["start","audiostart","speechstart","speechend","audioend"].forEach(function(n){r["on"+n]=function(){dlog(n);};});
     r.onerror=function(ev){
+      dlog("error: "+ev.error+(ev.message?" "+ev.message:""));
       lastError=ev.error;
       if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){wantRecord=false;clearTimeout(restartTimer);banner('<b>Chưa cấp quyền micro.</b> Bấm biểu tượng khóa 🔒 trên thanh địa chỉ → cho phép Microphone → tải lại trang.');setIdle();return;}
       if(ev.error==="network")banner('<b>Mất kết nối mạng.</b> Đang tự thử lại… Nội dung đã ghi vẫn giữ; nhận diện sẽ chạy tiếp khi có mạng.');
       else if(ev.error==="audio-capture")banner('<b>Không thấy micro.</b> Kiểm tra micro đang cắm/được chọn. Đang tự thử lại…');
     };
     r.onend=function(){
-      stopping=false;tracker.reset();
+      dlog("end");commitPending("hết phiên");stopping=false;tracker.reset(); // chữ tạm chưa chốt → ghi, không bỏ
       if(!wantRecord){setIdle();return;}
       var isErr=lastError&&lastError!=="no-speech"&&lastError!=="aborted";
       restartTimer=setTimeout(tryStart,isErr?Math.min(400*Math.pow(2,retryN),5000):200);
@@ -1028,13 +1071,14 @@
 
   function startRec(){
     if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
-    banner("");requestMic(false);retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;
-    if(!rec)rec=buildRec();try{rec.start();}catch(e){}
+    // iPhone: KHÔNG mở thêm luồng micro (getUserMedia) — tắt luồng đó làm Siri mất tiếng sau câu đầu; Siri tự xin quyền
+    banner("");if(!isIOS)requestMic(false);retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;
+    if(!rec)rec=buildRec();try{rec.start();dlog("start (bấm ghi)");}catch(e){dlog("start lỗi: "+e.message);}
     setLive();beginTimer();
   }
   function flushActiveNow(){if(!pendingChunk)return;var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e){pendingChunk="";return;}var n=nodeOf(e.id),ta=n?n.querySelector("[data-txt]"):null;flushPending(e,ta);}
-  function pauseRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();}
-  function stopRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();document.body.classList.remove("sess");$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
+  function pauseRec(){dlog("bấm Tạm dừng");wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}commitPending("tạm dừng",true);flushActiveNow();setIdle();saveNow();}
+  function stopRec(){dlog("bấm Kết thúc");wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}commitPending("kết thúc",true);flushActiveNow();setIdle();saveNow();document.body.classList.remove("sess");$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
 
   function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});dl(name,blob);}
   function dlBytes(name,bytes,type){dl(name,new Blob([bytes],{type:type}));}
@@ -1107,7 +1151,7 @@
       if(!auto){if(err&&err.code===1)toast("Đã từ chối quyền vị trí.");else toast("Không lấy được vị trí.");}
     },{enableHighAccuracy:true,timeout:10000,maximumAge:0}); // không dùng vị trí cũ: từng trả lại 0,0 đã lưu tạm dù GPS đã bắt được
   }
-  function askPermissions(){requestMic(true);if(!gpsDone&&!gpsAsked){gpsAsked=true;getGPS(true);}}
+  function askPermissions(){if(!isIOS)requestMic(true);if(!gpsDone&&!gpsAsked){gpsAsked=true;getGPS(true);}}
   $("btnGPS").addEventListener("click",function(){getGPS(false);});
 
   $("btnRec").addEventListener("click",function(){recording?pauseRec():startRec();});
@@ -1134,7 +1178,7 @@
   $("btnWord").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}try{var bytes=window.BBDocx.buildDocx(meta(),entries);dlBytes(L.fileStem(meta())+".docx",bytes,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");toast("Đã tải file Word (.docx).");}catch(e){download(L.fileStem(meta())+".doc",L.wordHtml(meta(),entries),"application/msword");toast("Đã tải file Word (.doc).");}});
   $("btnTxt").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".txt",L.plainText(meta(),entries),"text/plain;charset=utf-8");toast("Đã tải file .txt.");});
   $("btnCopy").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để sao chép.");return;}var txt=L.plainText(meta(),entries);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép biên bản.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
-  function fallbackCopy(txt){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Đã sao chép.");}catch(e){toast("Không sao chép được.");}document.body.removeChild(ta);}
+  function fallbackCopy(txt){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length); /* iOS bỏ qua select() */try{document.execCommand("copy");toast("Đã sao chép.");}catch(e){toast("Không sao chép được.");}document.body.removeChild(ta);}
 
   window.addEventListener("beforeunload",function(e){saveNow();if(recording||entries.length){e.preventDefault();e.returnValue="";}});
   window.addEventListener("pagehide",saveNow); // iOS Safari không luôn bắn beforeunload
@@ -1142,12 +1186,24 @@
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
   // ===== Tự kiểm tra phiên bản mới =====
-  var APP_VERSION="2.5";
+  var APP_VERSION="2.6";
   var VERSION_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/version.json";
   var PAGES_URL="https://neo-era.github.io/bien-ban-hop/";
   var RAW_HTML_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/index.html";
   var isHosted=/^https?:$/.test(location.protocol);
   if($("verBadge"))$("verBadge").textContent="v"+APP_VERSION;
+  // ===== Nhật ký chẩn đoán: giữ nhãn phiên bản ~1 giây HOẶC chạm nhanh 5 lần để bật/tắt (ghi lại Chrome/Siri trả gì) =====
+  function diagOn(){diag=[];dlog("BẬT — v"+APP_VERSION+" | "+navigator.userAgent+" | iOS="+isIOS+" | SR="+(SR?"có":"không"));$("diagBar").style.display="flex";}
+  function diagOff(){diag=null;$("diagBar").style.display="none";}
+  function diagToggle(){diag?diagOff():diagOn();toast(diag?"Đã bật nhật ký chẩn đoán.":"Đã tắt nhật ký chẩn đoán.");}
+  (function(){var b=$("verBadge"),t,taps=[];if(!b)return;b.style.cursor="pointer";
+    b.addEventListener("pointerdown",function(){t=setTimeout(function(){taps=[];diagToggle();},900);});
+    b.addEventListener("click",function(){var now=Date.now();taps=taps.filter(function(x){return now-x<2000;});taps.push(now);if(taps.length>=5){taps=[];diagToggle();}});
+    ["pointerup","pointerleave","pointercancel"].forEach(function(n){b.addEventListener(n,function(){clearTimeout(t);});});
+    b.addEventListener("contextmenu",function(e){e.preventDefault();});})();
+  $("diagOff").addEventListener("click",diagOff);
+  $("diagCopy").addEventListener("click",function(){if(!diag)return;var txt=diag.join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép nhật ký — dán gửi lại.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
   function hideUpdate(){$("updateBar").style.display="none";}
   function showUpdate(info){
     var v=info.version, notes=info.notes?(" — "+info.notes):"";

@@ -1,4 +1,4 @@
 {
-  "version": "2.5",
-  "notes": "Địa điểm GPS ghi địa chỉ cụ thể theo phường/xã mới (không còn tọa độ thô); dòng ngày tháng đúng NĐ 30"
+  "version": "2.6",
+  "notes": "iPhone: sửa lỗi chỉ ghi được câu đầu; không bỏ sót chữ chưa chốt khi máy tự ngắt / tạm dừng; thêm nhật ký chẩn đoán"
 }
