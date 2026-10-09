@@ -78,6 +78,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.1: tự kiểm tra phiên bản mới (version.json trên GitHub raw) lúc mở, mỗi 30 phút và khi
+  quay lại tab. Chạy web (GitHub Pages) → nút "Cập nhật ngay" tải lại ra bản mới (tạm dừng ghi,
+  lưu trước). Chạy file trên máy → không tự ghi đè được (giới hạn trình duyệt) → "Mở bản mới" + link tải.
+  "Để sau" không nhắc lại bản đó trong phiên. Mất mạng → bỏ qua lặng lẽ. Logic: cmpVersion (có test).
 - v2.0 (tối ưu): render tăng dần (không dựng lại cả danh sách → mượt khi họp dài);
   tìm kiếm trong biên bản (giữ hiện đoạn đang ghi); hoàn tác xóa đoạn + xóa hết (undoStack ≤50);
   tự viết hoa đầu câu + từ điển sửa thuật ngữ (áp cho câu máy nhận, đệm chunk khi đang gõ tay
@@ -96,3 +100,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
   kèm link Google Maps. Lưu ý: micro & GPS cần **secure context** (HTTPS như GitHub
   Pages, hoặc localhost/file://); trình duyệt yêu cầu thao tác người dùng để hiện prompt,
   nên app xin lại quyền ở lần chạm đầu tiên nếu lúc mở bị chặn.
+
+
+## 12. Quy trình phát hành bản mới (để app tự báo cập nhật)
+1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).
+2. Sửa `version.json` → `"version"` cùng số + `"notes"` mô tả ngắn.
+3. `npm test` + `npm run smoke` → pass hết.
+4. Commit + push nhánh `sub1`. Máy đang mở app sẽ thấy thông báo trong ≤30 phút hoặc khi mở lại.

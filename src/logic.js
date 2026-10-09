@@ -165,10 +165,24 @@
     return out;
   }
 
+  // So sánh phiên bản dạng "2.1" / "2.10.3": trả 1 nếu a>b, -1 nếu a<b, 0 nếu bằng
+  function cmpVersion(a, b) {
+    var pa = String(a || "").split(".").map(function (x) { return parseInt(x, 10) || 0; });
+    var pb = String(b || "").split(".").map(function (x) { return parseInt(x, 10) || 0; });
+    var n = Math.max(pa.length, pb.length);
+    for (var i = 0; i < n; i++) {
+      var x = pa[i] || 0, y = pb[i] || 0;
+      if (x > y) return 1;
+      if (x < y) return -1;
+    }
+    return 0;
+  }
+
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
     extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
-    autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict };
+    autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
+    cmpVersion: cmpVersion };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BBLogic = api;

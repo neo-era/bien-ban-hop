@@ -83,7 +83,7 @@
   <div class="brand">
     <div class="glyph">BB</div>
     <div>
-      <h1>Biên bản họp bằng giọng nói<span class="ver">v2.0</span></h1>
+      <h1>Biên bản họp bằng giọng nói<span class="ver" id="verBadge">v2.1</span></h1>
       <p>Nói tiếng Việt · máy tự gõ thành biên bản</p>
     </div>
   </div>
@@ -91,6 +91,13 @@
 </header>
 
 <div class="banner" id="banner"></div>
+<div id="updateBar" style="display:none;margin:14px 20px 0;padding:11px 14px;border-radius:10px;font-size:13.5px;line-height:1.5;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <span id="updateMsg" style="flex:1;min-width:200px"></span>
+  <span style="display:flex;gap:8px;flex-wrap:wrap">
+    <a id="updateBtn" class="btn btn-sm" style="background:#059669;color:#fff;text-decoration:none">Cập nhật ngay</a>
+    <button id="updateLater" class="btn btn-ghost btn-sm">Để sau</button>
+  </span>
+</div>
 
 <div class="wrap">
   <div class="side">
@@ -180,7 +187,8 @@
   function parseDict(text){if(!text)return[];return String(text).split("\n").map(function(line){var i=line.indexOf("=");if(i<=0)return null;var from=line.slice(0,i).trim(),to=line.slice(i+1).trim();if(!from||!to)return null;return{from:from,to:to};}).filter(function(x){return x;});}
   function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
   function applyDict(text,dict){if(!text||!dict||!dict.length)return text||"";var out=String(text);dict.forEach(function(d){var re=new RegExp("(^|[^\\p{L}\\p{N}])("+escRe(d.from)+")(?![\\p{L}\\p{N}])","giu");out=out.replace(re,function(m,pre){return pre+d.to;});});return out;}
-  root.BBLogic={fmtTime:fmtTime,dmy:dmy,esc:esc,appendText:appendText,extractSpeech:extractSpeech,bodyLines:bodyLines,fileStem:fileStem,plainText:plainText,wordHtml:wordHtml,autoCapitalize:autoCapitalize,parseDict:parseDict,applyDict:applyDict};
+  function cmpVersion(a,b){var pa=String(a||"").split(".").map(function(x){return parseInt(x,10)||0;});var pb=String(b||"").split(".").map(function(x){return parseInt(x,10)||0;});var n=Math.max(pa.length,pb.length);for(var i=0;i<n;i++){var x=pa[i]||0,y=pb[i]||0;if(x>y)return 1;if(x<y)return-1;}return 0;}
+  root.BBLogic={fmtTime:fmtTime,dmy:dmy,esc:esc,appendText:appendText,extractSpeech:extractSpeech,bodyLines:bodyLines,fileStem:fileStem,plainText:plainText,wordHtml:wordHtml,autoCapitalize:autoCapitalize,parseDict:parseDict,applyDict:applyDict,cmpVersion:cmpVersion};
 })(window);
 </script>
 
@@ -640,6 +648,47 @@
   document.addEventListener("visibilitychange",function(){if(document.hidden)saveNow();});
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
+  // ===== Tự kiểm tra phiên bản mới =====
+  var APP_VERSION="2.1";
+  var VERSION_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/version.json";
+  var PAGES_URL="https://neo-era.github.io/bien-ban-hop/";
+  var RAW_HTML_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/index.html";
+  var isHosted=/^https?:$/.test(location.protocol);
+  if($("verBadge"))$("verBadge").textContent="v"+APP_VERSION;
+  function hideUpdate(){$("updateBar").style.display="none";}
+  function showUpdate(info){
+    var v=info.version, notes=info.notes?(" — "+info.notes):"";
+    $("updateMsg").innerHTML="🆕 Có phiên bản mới <b>v"+L.esc(v)+"</b> (đang dùng v"+APP_VERSION+")"+L.esc(notes);
+    var btn=$("updateBtn");
+    if(isHosted){
+      btn.textContent="Cập nhật ngay";btn.removeAttribute("target");btn.removeAttribute("download");
+      btn.href="#";btn.onclick=function(ev){ev.preventDefault();
+        if(recording&&!confirm("Đang ghi. Cập nhật sẽ tạm dừng ghi (nội dung vẫn được giữ). Tiếp tục?"))return;
+        if(recording)pauseRec();saveNow();
+        location.replace(location.pathname+"?v="+encodeURIComponent(v)+"&t="+Date.now());};
+    }else{
+      // file tải về máy: không thể tự ghi đè → mở bản mới trên web
+      btn.textContent="Mở bản mới";btn.href=PAGES_URL+"?v="+encodeURIComponent(v);btn.target="_blank";btn.onclick=null;
+      $("updateMsg").innerHTML+='<br><span style="font-size:12px">Anh đang mở file trên máy nên không tự thay được. Bấm <b>Mở bản mới</b> để dùng bản web, hoặc <a href="'+RAW_HTML_URL+'" target="_blank" rel="noopener" style="color:#065f46">tải file mới</a>.</span>';
+    }
+    $("updateBar").style.display="flex";
+  }
+  function checkUpdate(){
+    if(!window.fetch)return;
+    fetch(VERSION_URL+"?t="+Date.now(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(info){
+      if(!info||!info.version)return;
+      if(L.cmpVersion(info.version,APP_VERSION)<=0){hideUpdate();return;}
+      if(snoozedVer===info.version)return;
+      pendingVer=info.version;
+      showUpdate(info);
+    }).catch(function(){/* không mạng / bị chặn: bỏ qua lặng lẽ */});
+  }
+  var snoozedVer="", pendingVer="";
+  $("updateLater").addEventListener("click",function(){snoozedVer=pendingVer;hideUpdate();});
+  setTimeout(checkUpdate,1500);
+  setInterval(checkUpdate,30*60*1000);
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)checkUpdate();});
+
   load();if(!$("optDict").value.trim())$("optDict").value=DEFAULT_DICT;dict=L.parseDict($("optDict").value);render();renderTimer();setIdle();
   askPermissions();
   var onceGesture=function(){askPermissions();document.removeEventListener("pointerdown",onceGesture);};

@@ -25,6 +25,51 @@ window.URL.revokeObjectURL = () => {};
 // Chặn click tải file: ghi lại thay vì thực thi
 const origCreate = window.document.createElement.bind(window.document);
 window.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
+// Giả lập GitHub trả version.json (app gọi sau 1,5s)
+let fakeVer = "9.9";
+let fetchCalls = 0;
+window.fetch = (url) => { fetchCalls++; return Promise.resolve({ ok: true, json: () => Promise.resolve({ version: fakeVer, notes: "bản thử" }) }); };
+
+// Pha bất đồng bộ: kiểm tính năng tự cập nhật
+function updatePhase(d, $) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  (async () => {
+    let step = "update-new";
+    try {
+      await sleep(1900); // app kiểm sau 1,5s
+      assert.ok(fetchCalls >= 1, "app đã gọi kiểm tra phiên bản");
+      assert.strictEqual($("updateBar").style.display, "flex", "có bản mới 9.9 → hiện thanh cập nhật");
+      assert.ok($("updateMsg").textContent.includes("9.9"), "thông báo ghi đúng số phiên bản");
+      assert.strictEqual($("updateBtn").textContent, "Cập nhật ngay", "chạy web (http) → nút Cập nhật ngay");
+      assert.strictEqual($("verBadge").textContent, "v2.1", "nhãn version đồng bộ APP_VERSION");
+
+      step = "update-later";
+      $("updateLater").click();
+      assert.strictEqual($("updateBar").style.display, "none", "Để sau → ẩn");
+      d.dispatchEvent(new window.Event("visibilitychange"));
+      await sleep(100);
+      assert.strictEqual($("updateBar").style.display, "none", "đã 'Để sau' bản 9.9 → không nhắc lại trong phiên");
+
+      step = "update-none";
+      fakeVer = "2.1"; // bằng bản đang dùng
+      d.dispatchEvent(new window.Event("visibilitychange"));
+      await sleep(100);
+      assert.strictEqual($("updateBar").style.display, "none", "không có bản mới → không hiện");
+
+      step = "update-offline";
+      window.fetch = () => Promise.reject(new Error("offline"));
+      d.dispatchEvent(new window.Event("visibilitychange"));
+      await sleep(100);
+
+      assert.strictEqual(errors.length, 0, "không lỗi runtime: " + errors.join(" | "));
+      console.log("SMOKE PASS (cập nhật) — có bản mới, để sau, không có bản mới, mất mạng đều ổn");
+      process.exit(0);
+    } catch (e) {
+      console.error("SMOKE FAIL ở bước [" + step + "]:", e.message);
+      process.exit(1);
+    }
+  })();
+}
 
 let ran = false;
 function run() {
@@ -108,7 +153,8 @@ function run() {
     assert.ok(visible2 > 0, "xóa từ khóa → hiện lại");
 
     assert.strictEqual(errors.length, 0, "không có lỗi runtime: " + errors.join(" | "));
-    console.log("SMOKE PASS — init, add, export, export-empty, persist, undo, autocap, search đều ổn");
+    console.log("SMOKE PASS (đồng bộ) — init, add, export, export-empty, persist, undo, autocap, search đều ổn");
+    updatePhase(d, $);
     console.log("downloads ghi nhận:", downloads);
   } catch (e) {
     console.error("SMOKE FAIL ở bước [" + step + "]:", e.message);

@@ -162,6 +162,25 @@ test("applyDict: từ điển rỗng → giữ nguyên", () => {
   assert.strictEqual(L.applyDict("abc", null), "abc");
 });
 
+// ---------- cmpVersion ----------
+test("cmpVersion: so sánh đúng theo từng phần số", () => {
+  assert.strictEqual(L.cmpVersion("2.1", "2.0"), 1);
+  assert.strictEqual(L.cmpVersion("2.0", "2.1"), -1);
+  assert.strictEqual(L.cmpVersion("2.0", "2.0"), 0);
+});
+test("cmpVersion: không so theo chữ cái (2.10 > 2.9)", () => {
+  assert.strictEqual(L.cmpVersion("2.10", "2.9"), 1);
+});
+test("cmpVersion: khác số phần (2.1 > 2 ; 2.0.1 > 2.0)", () => {
+  assert.strictEqual(L.cmpVersion("2.1", "2"), 1);
+  assert.strictEqual(L.cmpVersion("2.0.1", "2.0"), 1);
+});
+test("cmpVersion: chịu được rỗng/rác", () => {
+  assert.strictEqual(L.cmpVersion("", "1.0"), -1);
+  assert.strictEqual(L.cmpVersion("1.0", ""), 1);
+  assert.strictEqual(L.cmpVersion("", ""), 0);
+});
+
 // ---------- wordHtml ----------
 test("wordHtml: Times New Roman + tiêu đề + khối ký", () => {
   const meta = { company: "LAVIPCO", title: "Họp A", date: "2026-10-08", time: "08:00",
