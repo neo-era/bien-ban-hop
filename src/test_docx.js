@@ -100,3 +100,11 @@ test("zipStore: EOCD signature ở cuối", () => {
   }
   assert.ok(found, "có End Of Central Directory");
 });
+
+test("dòng 'địa danh, ngày…' chỉ lấy Tỉnh/TP; Địa điểm giữ đủ địa chỉ (NĐ 30)", () => {
+  const meta = { title: "Họp", date: "2026-10-09", place: "Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh" };
+  const xml = D.buildDocumentXml(meta, [{ id: "1", time: "08:00", speaker: "A", text: "x" }]);
+  assert.ok(xml.includes("Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026"));
+  assert.ok(!xml.includes("Bến Thành, Thành phố Hồ Chí Minh, ngày"));
+  assert.ok(xml.includes("Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh"));
+});

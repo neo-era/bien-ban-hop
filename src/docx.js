@@ -11,6 +11,13 @@
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
   }
 
+  // ---- dòng "địa danh, ngày…" (NĐ 30): chỉ tên Tỉnh/TP — giống datePlace trong logic.js ----
+  function datePlace(place) {
+    var parts = String(place || "").split(",").map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+    var last = parts[parts.length - 1] || "";
+    return parts.length > 1 && /^(thành phố|tỉnh)\s/i.test(last) ? last : parts.join(", ");
+  }
+
   // ---- định dạng ngày ----
   function dmy(iso) {
     if (!iso || typeof iso !== "string") return "";
@@ -110,7 +117,7 @@
 
     // ===== Tiêu đề =====
     b.push(para(run("BIÊN BẢN CUỘC HỌP", { b: true, sz: 30 }), { align: "center", spaceAfter: 60 }));
-    var sub = (meta.place ? meta.place + ", " : "") + dmy(meta.date);
+    var sub = (meta.place ? datePlace(meta.place) + ", " : "") + dmy(meta.date);
     if (sub.trim()) b.push(para(run(sub, { i: true }), { align: "center", spaceAfter: 200 }));
 
     // ===== Thông tin =====

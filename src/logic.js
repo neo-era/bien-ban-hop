@@ -83,6 +83,80 @@
     };
   }
 
+  // ----- Địa điểm từ GPS: địa chỉ theo đơn vị hành chính 2 cấp (01/7/2025) -----
+  // Máy không có GPS thật hay trả 0,0 → không được ghi tọa độ rác vào biên bản.
+  function checkFix(lat, lon, acc) {
+    if (typeof lat !== "number" || typeof lon !== "number" || !isFinite(lat) || !isFinite(lon)) return { ok: false, reason: "bad" };
+    if (Math.abs(lat) < 1e-6 && Math.abs(lon) < 1e-6) return { ok: false, reason: "zero" };
+    if (lat < 7 || lat > 23.5 || lon < 102 || lon > 118) return { ok: false, reason: "outside" }; // gồm Hoàng Sa, Trường Sa
+    if (typeof acc === "number" && acc > 1000) return { ok: false, reason: "inaccurate" };
+    return { ok: true, reason: "" };
+  }
+  var CITIES = ["Hà Nội", "Huế", "Hải Phòng", "Đà Nẵng", "Cần Thơ", "Hồ Chí Minh"]; // 6 TP trực thuộc TW
+  var ALIASES = { "ho chi minh": "Hồ Chí Minh", "hcm": "Hồ Chí Minh", "hanoi": "Hà Nội", "ha noi": "Hà Nội",
+    "hue": "Huế", "thua thien hue": "Huế", "thừa thiên huế": "Huế", "hai phong": "Hải Phòng",
+    "da nang": "Đà Nẵng", "can tho": "Cần Thơ" };
+  var CITY_OR_PROV = /^(thành phố|tỉnh)\s/i;
+  function nfc(s) { s = String(s || "").trim(); return s.normalize ? s.normalize("NFC") : s; }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function provinceName(s) {
+    var t = nfc(s);
+    if (!t) return "";
+    if (CITY_OR_PROV.test(t)) return cap(t);
+    t = t.replace(/^(tp\.?\s*|thủ đô\s+|city of\s+)/i, "").replace(/\s+city$/i, "").trim();
+    t = ALIASES[t.toLowerCase()] || t;
+    return (CITIES.indexOf(t) >= 0 ? "Thành phố " : "Tỉnh ") + t;
+  }
+  function wardName(s) {
+    var t = nfc(s);
+    if (!t) return "";
+    if (/^(quận|huyện|thị xã|thành phố|tỉnh)\s/i.test(t)) return ""; // tên cấp cũ (đã bỏ từ 01/7/2025) → không bịa phường
+    t = t.replace(/^p\.\s*/i, "Phường ");
+    var m = t.match(/^(phường|xã|đặc khu|thị trấn)\s+/i);
+    if (m) return cap(m[1].toLowerCase()) + " " + t.slice(m[0].length);
+    return "Phường " + t;
+  }
+  function parsePhoton(json) {
+    var f = json && json.features && json.features[0], p = f && f.properties;
+    if (!p) return null;
+    if (p.countrycode && String(p.countrycode).toUpperCase() !== "VN") return null;
+    // phường/xã thường ở district, có nơi ở county; đặc khu (Phú Quốc…) nằm ở city khi có state = tỉnh
+    var ward = p.district || p.county || (p.state && p.city && !CITY_OR_PROV.test(p.city) ? p.city : "");
+    return { house: p.housenumber || "", street: p.street || (p.osm_key === "highway" ? p.name || "" : ""),
+      ward: ward, province: p.state || p.city || "" };
+  }
+  function parseOverpass(json) {
+    var wards = [], province = "", foreign = false;
+    ((json && json.elements) || []).forEach(function (e) {
+      var t = e.tags || {};
+      if (t.admin_level === "2" && t["ISO3166-1"] && t["ISO3166-1"] !== "VN") foreign = true;
+      if (t.admin_level === "6" && t.name && wards.indexOf(t.name) < 0) wards.push(t.name);
+      if (t.admin_level === "4" && t.name && !province) province = t.name;
+    });
+    if (foreign) return { ward: "", province: "" };
+    return { ward: wards.length === 1 ? wards[0] : "", province: province }; // nhiều phường → không đoán
+  }
+  function formatPlace(p) {
+    if (!p) return "";
+    var ward = wardName(p.ward), prov = provinceName(p.province);
+    if (!ward || !prov) return "";
+    var house = String(p.house || "").trim(), street = String(p.street || "").trim();
+    var road = !street ? "" : house && street.split(/\s+/)[0] !== house ? house + " " + street : street;
+    return [road, ward, prov].filter(function (x) { return x; }).join(", ");
+  }
+  // Gỡ đúng 2 dạng bản cũ đã ghi: "GPS x, y" và "chữ (GPS x, y)"
+  function cleanPlace(s) {
+    var t = String(s || "").trim();
+    if (/^GPS\s+-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/i.test(t)) return "";
+    return t.replace(/\s*\(GPS\s+-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\)$/i, "").trim();
+  }
+  // Dòng "địa danh, ngày…" (NĐ 30): chỉ tên Tỉnh/TP. Địa điểm gõ tay không theo dạng địa chỉ → giữ như cũ.
+  function datePlace(place) {
+    var parts = String(place || "").split(",").map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+    var last = parts[parts.length - 1] || "";
+    return parts.length > 1 && CITY_OR_PROV.test(last) ? last : parts.join(", ");
+  }
+
   function bodyLines(entries) {
     return (entries || []).filter(function (e) {
       return (e.text || "").trim() || (e.speaker || "").trim() || (e.who || "").trim();
@@ -191,7 +265,7 @@
 '<td width="54%" align="center" valign="top"><b style="font-size:12pt;white-space:nowrap">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:150px;font-size:2pt">&#160;</td></tr></table></td>' +
 '</tr></table>' +
 '<h1>BIÊN BẢN CUỘC HỌP</h1>' +
-'<p class="sub">' + esc(meta.place ? meta.place + ", " : "") + esc(dmy(meta.date)) + '</p>' +
+'<p class="sub">' + esc(meta.place ? datePlace(meta.place) + ", " : "") + esc(dmy(meta.date)) + '</p>' +
 '<div class="meta">' +
 '<p><b>Nội dung họp:</b> ' + esc(meta.title || "(chưa đặt tiêu đề)") + '</p>' +
 ((meta.date || meta.time) ? '<p><b>Thời gian:</b> ' + esc(meta.time ? meta.time + " - " : "") + esc(dmy(meta.date)) + '</p>' : '') +
@@ -261,7 +335,9 @@
   }
 
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
-    extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker, bodyLines: bodyLines, fileStem: fileStem,
+    extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker,
+    checkFix: checkFix, provinceName: provinceName, wardName: wardName, parsePhoton: parsePhoton,
+    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
     cmpVersion: cmpVersion, sections: sections };

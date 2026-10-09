@@ -78,6 +78,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.5: Địa điểm từ GPS = địa chỉ cụ thể theo đơn vị hành chính 2 cấp (01/7/2025), không còn "GPS x, y" thô
+  (Photon điền nhanh → Overpass chuẩn hóa Phường/Xã/Đặc khu). Từ chối 0,0 / ngoài VN / sai số >1 km; luôn lấy vị trí
+  mới (bỏ maximumAge 60 s từng trả lại 0,0 cũ). Tự gỡ tọa độ thô đã lưu từ bản cũ. Dòng "địa danh, ngày…" trong Word
+  chỉ ghi Tỉnh/TP (NĐ 30). Chi tiết + kết quả review: mục 12 "Thiết kế C".
 - v2.4: (1) Chống lặp chữ — `createSpeechTracker` (logic.js, có test): bỏ câu Chrome gửi lại (trùng vị trí + nội dung);
   Android gửi dồn → chỉ lấy phần mới, nhưng chỉ khi có bằng chứng (thà lặp còn hơn mất chữ — xem mục 12).
   (2) Điện thoại ≤768px: chữ ô nhập 16px (iPhone khỏi tự phóng to), nút/✕ ≥44px. (3) Thanh ghi dính đáy ≤860px
@@ -156,6 +160,30 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - `#mbar` cố định đáy, chỉ hiện ở ≤860px (bố cục 1 cột) khi `body.sess` (đã bắt đầu ghi, chưa Kết thúc/Xóa hết).
   Nút trên thanh gọi lại đúng nút gốc (`click()`) → không nhân đôi logic. Toast + chân trang đẩy lên tránh bị che.
   Hoàn tác "Xóa hết" (đồng hồ > 0) → hiện lại thanh. Tải lại trang → thanh ẩn tới khi bấm Ghi tiếp (cố ý).
+
+### Thiết kế C — Địa điểm từ GPS theo đơn vị hành chính 2 cấp (01/7/2025)
+Tiêu chí (đã duyệt): G1 không bao giờ ghi tọa độ thô vào Địa điểm/biên bản · G2 tọa độ 0,0 / ngoài VN /
+sai số >1 km → báo, không ghi · G3 "số nhà đường, Phường/Xã/Đặc khu X, Tỉnh/Thành phố Y" (không quận/huyện) ·
+G4 Photon hiện ngay, Overpass chạy song song rồi chuẩn hóa phường/xã — chỉ khi chưa sửa tay · G5 lúc mở app không
+đè ô đã có chữ, chỉ bấm 📍 mới thay · G6 lỗi mạng → để trống + báo nhập tay, giữ link Google Maps · G7 test cũ pass.
+
+- Hàm thuần (logic.js, có test): `checkFix(lat,lon,acc)`, `parsePhoton(json)`, `parseOverpass(json)`,
+  `provinceName(s)`, `wardName(s)`, `formatPlace(parts)`, `cleanPlace(s)` (gỡ "GPS x, y" đã lưu từ bản cũ khi nạp).
+- Nguồn (khảo sát 09/10/2026 từ máy anh): Nominatim bị từ chối kết nối → không dùng. Photon
+  (`photon.komoot.io/reverse?lang=default`) ~2 s, đã có phường/xã MỚI nhưng hay thiếu tiền tố "Phường/Xã".
+  Overpass `is_in` (admin_level 6 = phường/xã, 4 = tỉnh/TP; maps.mail.ru → overpass-api.de) chuẩn nhất, 20 s, hay lỗi.
+  BigDataCloud trả nhiều phường cùng lúc gần ranh → bỏ.
+- Thiếu tiền tố và Overpass lỗi → mặc định "Phường" (có thể sai ở vùng ven — anh rà lại trước khi xuất).
+- Tỉnh/TP thiếu tiền tố: 6 TP trực thuộc TW (Hà Nội, Huế, Hải Phòng, Đà Nẵng, Cần Thơ, Hồ Chí Minh) → "Thành phố", còn lại "Tỉnh".
+- Tọa độ được gửi tới Photon/Overpass (OSM) để tra địa chỉ.
+- Dòng "địa danh, ngày…" (Word/.doc) chỉ lấy Tỉnh/TP (`datePlace`, có bản sao trong docx.js); mục "Địa điểm:" giữ đủ địa chỉ.
+- Bẫy đã gặp: `getCurrentPosition` với `maximumAge:60000` trả lại vị trí 0,0 đã lưu tạm dù GPS đã bắt được → dùng 0.
+- Review độc lập (đã sửa, có test): Photon để phường ở `county` (Cà Mau) / đặc khu ở `city` (Phú Quốc); điểm ở
+  Campuchia lọt khung tọa độ → kiểm `countrycode` + ISO cấp quốc gia của Overpass; "Quận 1" từng thành "Phường Quận 1";
+  "TP.HCM" thành "Tỉnh HCM"; cleanPlace ăn chữ ("Trạm GPS 3, 5 Lê Lợi"); hạn giờ không tính lúc đọc thân.
+- Mở app mà tra lỗi → im lặng (không làm phiền mỗi lần mở); bấm 📍 mà lỗi → báo nhập tay.
+- Hạn chế còn lại: từ máy anh overpass-api.de trả 406 cho mọi yêu cầu → thực tế chỉ còn maps.mail.ru (~15 s).
+  Overpass lỗi + Photon thiếu tiền tố → tạm ghi "Phường" (vd Phú Quốc tạm "Phường", Overpass về mới thành "Đặc khu").
 
 ## 13. Quy trình phát hành bản mới (để app tự báo cập nhật)
 1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).

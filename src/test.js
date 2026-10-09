@@ -327,3 +327,127 @@ test("wordHtml: thoát ký tự đặc biệt trong nội dung (ca xấu)", () =
   assert.ok(h.includes("1 &lt; 2 &amp; 3 &gt; 0"));
   assert.ok(!h.includes("1 < 2 & 3 > 0"));
 });
+
+// ---------- Địa điểm từ GPS (v2.4) ----------
+test("checkFix: tọa độ hợp lệ trong Việt Nam", () => {
+  assert.strictEqual(L.checkFix(10.7655, 106.6115, 20).ok, true);
+  assert.strictEqual(L.checkFix(21.0278, 105.8342).ok, true); // không có sai số vẫn nhận
+});
+test("checkFix: 0,0 / ngoài VN / sai số >1km / rác → không nhận (G2)", () => {
+  assert.strictEqual(L.checkFix(0, 0, 10).ok, false);
+  assert.strictEqual(L.checkFix(48.85, 2.35, 10).ok, false);
+  assert.strictEqual(L.checkFix(10.7655, 106.6115, 1500).ok, false);
+  assert.strictEqual(L.checkFix(NaN, 106.6, 10).ok, false);
+  assert.strictEqual(L.checkFix(null, undefined).ok, false);
+});
+test("provinceName: chuẩn hóa tên tỉnh/thành phố", () => {
+  assert.strictEqual(L.provinceName("Thành phố Hồ Chí Minh"), "Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.provinceName("Ho Chi Minh City"), "Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.provinceName("Hà Nội"), "Thành phố Hà Nội");
+  assert.strictEqual(L.provinceName("Tỉnh Đồng Nai"), "Tỉnh Đồng Nai");
+  assert.strictEqual(L.provinceName("Đồng Nai"), "Tỉnh Đồng Nai");
+  assert.strictEqual(L.provinceName(""), "");
+});
+test("wardName: giữ tiền tố có sẵn, thiếu thì mặc định Phường", () => {
+  assert.strictEqual(L.wardName("Xã Nhuận Đức"), "Xã Nhuận Đức");
+  assert.strictEqual(L.wardName("phường Bến Thành"), "Phường Bến Thành");
+  assert.strictEqual(L.wardName("Đặc khu Côn Đảo"), "Đặc khu Côn Đảo");
+  assert.strictEqual(L.wardName("Bình Trị Đông"), "Phường Bình Trị Đông");
+  assert.strictEqual(L.wardName(""), "");
+});
+test("parsePhoton: lấy số nhà/đường/phường/tỉnh; bỏ tên địa danh không phải đường", () => {
+  const p = L.parsePhoton({ features: [{ properties: { osm_key: "highway", name: "Hẻm 639/73/4 Hương Lộ 2",
+    locality: "Khu phố 25", district: "Bình Trị Đông", city: "Thành phố Hồ Chí Minh" } }] });
+  assert.deepStrictEqual(p, { house: "", street: "Hẻm 639/73/4 Hương Lộ 2", ward: "Bình Trị Đông", province: "Thành phố Hồ Chí Minh" });
+  const q = L.parsePhoton({ features: [{ properties: { osm_key: "leisure", name: "Quach Thi Trang Square",
+    housenumber: "", district: "Ben Thanh", city: "Ho Chi Minh City" } }] });
+  assert.strictEqual(q.street, "");
+  const r = L.parsePhoton({ features: [{ properties: { housenumber: "247", street: "Đường Thống Nhất",
+    district: "Thông Tây Hội", state: "Tỉnh Đồng Nai", city: "Biên Hòa" } }] });
+  assert.strictEqual(r.province, "Tỉnh Đồng Nai"); // ưu tiên state (tỉnh), city có thể là TP cũ đã giải thể
+  assert.strictEqual(L.parsePhoton({}), null);
+  assert.strictEqual(L.parsePhoton(null), null);
+});
+test("parseOverpass: lấy phường/xã (cấp 6) + tỉnh (cấp 4); nhiều phường → không đoán", () => {
+  const one = { elements: [{ tags: { admin_level: "4", name: "Thành phố Hồ Chí Minh" } }, { tags: { admin_level: "6", name: "Phường Bình Trị Đông" } }] };
+  assert.deepStrictEqual(L.parseOverpass(one), { ward: "Phường Bình Trị Đông", province: "Thành phố Hồ Chí Minh" });
+  const two = { elements: [{ tags: { admin_level: "6", name: "Phường A" } }, { tags: { admin_level: "6", name: "Phường B" } }] };
+  assert.strictEqual(L.parseOverpass(two).ward, "");
+  assert.deepStrictEqual(L.parseOverpass({}), { ward: "", province: "" });
+});
+test("formatPlace: số nhà + đường, Phường, Tỉnh/TP — không quận/huyện (G3)", () => {
+  assert.strictEqual(L.formatPlace({ house: "", street: "Hẻm 639/73/4 Hương Lộ 2", ward: "Bình Trị Đông", province: "Thành phố Hồ Chí Minh" }),
+    "Hẻm 639/73/4 Hương Lộ 2, Phường Bình Trị Đông, Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.formatPlace({ house: "247", street: "Đường Thống Nhất", ward: "Phường Thông Tây Hội", province: "Ho Chi Minh City" }),
+    "247 Đường Thống Nhất, Phường Thông Tây Hội, Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.formatPlace({ ward: "Xã Nhuận Đức", province: "Thành phố Hồ Chí Minh" }), "Xã Nhuận Đức, Thành phố Hồ Chí Minh");
+});
+test("formatPlace: thiếu phường/xã hoặc tỉnh → rỗng (không ghi nửa vời)", () => {
+  assert.strictEqual(L.formatPlace({ street: "Hương Lộ 2", ward: "", province: "Thành phố Hồ Chí Minh" }), "");
+  assert.strictEqual(L.formatPlace({ ward: "Bình Trị Đông", province: "" }), "");
+  assert.strictEqual(L.formatPlace(null), "");
+});
+test("cleanPlace: gỡ tọa độ thô đã lưu từ bản cũ (G1)", () => {
+  assert.strictEqual(L.cleanPlace("GPS 0.000000, 0.000000"), "");
+  assert.strictEqual(L.cleanPlace("Phòng họp LAVIPCO (GPS 10.765500, 106.611500)"), "Phòng họp LAVIPCO");
+  assert.strictEqual(L.cleanPlace("GPS -1.5, 106.6"), "");
+  assert.strictEqual(L.cleanPlace("Phòng họp tầng 3"), "Phòng họp tầng 3");
+  assert.strictEqual(L.cleanPlace(""), "");
+});
+
+// ---- review độc lập phần GPS (v2.4) ----
+test("parsePhoton: phường nằm ở county, hoặc city là đặc khu khi có state", () => {
+  assert.strictEqual(L.parsePhoton({ features: [{ properties: { countrycode: "VN", county: "Phường Tân Thành", state: "Tỉnh Cà Mau" } }] }).ward, "Phường Tân Thành");
+  assert.strictEqual(L.parsePhoton({ features: [{ properties: { countrycode: "VN", city: "Phú Quốc", state: "Tỉnh An Giang" } }] }).ward, "Phú Quốc");
+  // city là tỉnh/TP (không có state) → không lấy làm phường
+  assert.strictEqual(L.parsePhoton({ features: [{ properties: { city: "Thành phố Hồ Chí Minh" } }] }).ward, "");
+});
+test("parsePhoton/parseOverpass: điểm ngoài Việt Nam → bỏ (G2)", () => {
+  assert.strictEqual(L.parsePhoton({ features: [{ properties: { countrycode: "KH", district: "Daun Penh", city: "Phnom Penh" } }] }), null);
+  const kh = { elements: [{ tags: { admin_level: "2", "ISO3166-1": "KH" } }, { tags: { admin_level: "4", name: "Phnom Penh" } }, { tags: { admin_level: "6", name: "Daun Penh" } }] };
+  assert.deepStrictEqual(L.parseOverpass(kh), { ward: "", province: "" });
+  const vn = { elements: [{ tags: { admin_level: "2", "ISO3166-1": "VN" } }, { tags: { admin_level: "4", name: "Thành phố Hồ Chí Minh" } }, { tags: { admin_level: "6", name: "Phường Bến Thành" } }] };
+  assert.strictEqual(L.parseOverpass(vn).ward, "Phường Bến Thành");
+});
+test("wardName: tên cấp quận/huyện cũ → rỗng (không bịa 'Phường Quận 1'); P. → Phường; Unicode tổ hợp", () => {
+  assert.strictEqual(L.wardName("Quận 1"), "");
+  assert.strictEqual(L.wardName("Huyện Củ Chi"), "");
+  assert.strictEqual(L.wardName("Thị xã Bến Cát"), "");
+  assert.strictEqual(L.wardName("Thành phố Thủ Đức"), "");
+  assert.strictEqual(L.wardName("P. Bến Thành"), "Phường Bến Thành");
+  assert.strictEqual(L.wardName("Phường Bến Thành".normalize("NFD")), "Phường Bến Thành");
+});
+test("provinceName: viết tắt / tên tiếng Anh / Thủ đô", () => {
+  assert.strictEqual(L.provinceName("TP.HCM"), "Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.provinceName("TP. Hồ Chí Minh"), "Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.provinceName("Thủ đô Hà Nội"), "Thành phố Hà Nội");
+  assert.strictEqual(L.provinceName("Thua Thien Hue"), "Thành phố Huế");
+  assert.strictEqual(L.provinceName("Thành phố Hồ Chí Minh".normalize("NFD")), "Thành phố Hồ Chí Minh");
+});
+test("formatPlace: số nhà so theo từ; có số nhà mà không có đường → bỏ số nhà", () => {
+  assert.strictEqual(L.formatPlace({ house: "1", street: "10 Lê Lợi", ward: "Bến Thành", province: "Hồ Chí Minh" }),
+    "1 10 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.formatPlace({ house: "10", street: "10 Lê Lợi", ward: "Bến Thành", province: "Hồ Chí Minh" }),
+    "10 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.formatPlace({ house: "12", street: "", ward: "Bến Thành", province: "Hồ Chí Minh" }),
+    "Phường Bến Thành, Thành phố Hồ Chí Minh");
+});
+test("cleanPlace: chỉ gỡ đúng dạng bản cũ đã ghi, không ăn chữ khác", () => {
+  assert.strictEqual(L.cleanPlace("Trạm GPS 3, 5 Lê Lợi"), "Trạm GPS 3, 5 Lê Lợi");
+  assert.strictEqual(L.cleanPlace("Cty AGPS 1,2"), "Cty AGPS 1,2");
+  assert.strictEqual(L.cleanPlace("Phòng họp (tầng 2, GPS 10.1, 106.2)"), "Phòng họp (tầng 2, GPS 10.1, 106.2)");
+  assert.strictEqual(L.cleanPlace("  GPS 10.765500, 106.611500  "), "");
+});
+test("datePlace: dòng 'địa danh, ngày…' chỉ lấy Tỉnh/Thành phố (NĐ 30)", () => {
+  assert.strictEqual(L.datePlace("Hẻm 639/73/4 Hương Lộ 2, Phường Bình Trị Đông, Thành phố Hồ Chí Minh"), "Thành phố Hồ Chí Minh");
+  assert.strictEqual(L.datePlace("Xã Nhuận Đức, Tỉnh Tây Ninh"), "Tỉnh Tây Ninh");
+  assert.strictEqual(L.datePlace("Phòng họp LAVIPCO"), "Phòng họp LAVIPCO"); // gõ tay: giữ như cũ
+  assert.strictEqual(L.datePlace(""), "");
+});
+test("plainText/wordHtml: Địa điểm ghi đủ địa chỉ, dòng ngày chỉ có Tỉnh/TP", () => {
+  const meta = { title: "Họp", date: "2026-10-09", place: "Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh" };
+  const html = L.wordHtml(meta, [{ id: "1", time: "08:00", speaker: "A", text: "x" }]);
+  assert.ok(html.includes("Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026"));
+  assert.ok(!html.includes("Bến Thành, Thành phố Hồ Chí Minh, ngày"));
+  assert.ok(html.includes("Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh</p>"));
+});

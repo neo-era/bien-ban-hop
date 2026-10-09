@@ -1,4 +1,4 @@
 {
-  "version": "2.4",
-  "notes": "Chống lặp chữ trên Android; giao diện điện thoại dễ bấm hơn + thanh ghi dính đáy màn hình"
+  "version": "2.5",
+  "notes": "Địa điểm GPS ghi địa chỉ cụ thể theo phường/xã mới (không còn tọa độ thô); dòng ngày tháng đúng NĐ 30"
 }
