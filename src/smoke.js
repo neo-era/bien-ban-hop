@@ -54,7 +54,8 @@ function run() {
     $("mTitle").dispatchEvent(new window.Event("input", { bubbles: true }));
     $("btnWord").click();
     $("btnTxt").click();
-    assert.ok(downloads.some((n) => /\.doc$/.test(n)), "đã tải .doc");
+    assert.ok(downloads.some((n) => /\.docx$/.test(n)), "đã tải .docx (không phải .doc-HTML)");
+    assert.ok(!downloads.some((n) => /\.doc$/.test(n)), "không rơi vào fallback .doc");
     assert.ok(downloads.some((n) => /\.txt$/.test(n)), "đã tải .txt");
     assert.ok(downloads.some((n) => n.includes("Họp_kiểm_thử")), "tên file theo tiêu đề");
 

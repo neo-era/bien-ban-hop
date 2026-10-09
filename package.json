@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "pretest": "node src/extract_inline.js",
-    "test": "node --test src/test.js src/test_inline.js",
+    "test": "node src/extract_inline.js && node --test src/test.js src/test_inline.js src/test_docx.js",
     "smoke": "node src/smoke.js"
   },
   "keywords": [],

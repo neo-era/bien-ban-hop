@@ -78,6 +78,10 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v1.3: xuất **.docx chuẩn (OOXML)** thay cho .doc-HTML để ĐIỆN THOẠI mở được
+  (Google Docs/WPS/Word mobile từ chối .doc-HTML). Bộ tạo docx thuần, không thư viện
+  ngoài: ZIP store + CRC32 + document.xml/styles.xml, có tblGrid + paragraph sau bảng cuối.
+  Test: src/test_docx.js. .doc-HTML giữ làm fallback nếu trình duyệt không hỗ trợ.
 - v1.2: thêm Quốc hiệu – Tiêu ngữ (góc phải) + tên công ty (góc trái) theo bố cục 2 cột
   chuẩn NĐ 30/2020, có đường kẻ dưới mỗi khối. Quốc hiệu cỡ 12pt + nowrap để gọn 1 dòng
   trong MS Word (LibreOffice preview có thể ngắt do không honor bề rộng cột).
