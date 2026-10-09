@@ -124,6 +124,44 @@ test("plainText: không có nội dung vẫn không lỗi (ca xấu)", () => {
   assert.doesNotThrow(() => L.plainText(meta, []));
 });
 
+// ---------- autoCapitalize ----------
+test("autoCapitalize: viết hoa đầu chuỗi", () => {
+  assert.strictEqual(L.autoCapitalize("xin chào các anh"), "Xin chào các anh");
+});
+test("autoCapitalize: viết hoa sau dấu kết câu", () => {
+  assert.strictEqual(L.autoCapitalize("khai mạc. báo cáo tiến độ"), "Khai mạc. Báo cáo tiến độ");
+  assert.strictEqual(L.autoCapitalize("xong chưa? rồi nhé"), "Xong chưa? Rồi nhé");
+});
+test("autoCapitalize: giữ nguyên chữ đã hoa, không phá giữa từ", () => {
+  assert.strictEqual(L.autoCapitalize("Dùng đèn LED mới"), "Dùng đèn LED mới");
+});
+test("autoCapitalize: rỗng/null an toàn", () => {
+  assert.strictEqual(L.autoCapitalize(""), "");
+  assert.strictEqual(L.autoCapitalize(null), "");
+});
+
+// ---------- parseDict / applyDict ----------
+test("parseDict: đọc 'sai=đúng' mỗi dòng, bỏ dòng trống/sai", () => {
+  const d = L.parseDict("led=LED\nthgt = THGT\n\nxxx\n= bỏ");
+  assert.strictEqual(d.length, 2);
+  assert.deepStrictEqual(d[0], { from: "led", to: "LED" });
+  assert.deepStrictEqual(d[1], { from: "thgt", to: "THGT" });
+});
+test("applyDict: thay thế không phân biệt hoa thường, theo từ", () => {
+  const d = [{ from: "led", to: "LED" }, { from: "thgt", to: "THGT" }];
+  assert.strictEqual(L.applyDict("thay den led va thgt", d), "thay den LED va THGT");
+  assert.strictEqual(L.applyDict("Led sáng", d), "LED sáng");
+});
+test("applyDict: không thay giữa từ khác", () => {
+  const d = [{ from: "led", to: "LED" }];
+  assert.strictEqual(L.applyDict("bледa khong dung", d), "bледa khong dung");
+  assert.strictEqual(L.applyDict("sled", d), "sled"); // 'led' trong 'sled' không đổi
+});
+test("applyDict: từ điển rỗng → giữ nguyên", () => {
+  assert.strictEqual(L.applyDict("abc", []), "abc");
+  assert.strictEqual(L.applyDict("abc", null), "abc");
+});
+
 // ---------- wordHtml ----------
 test("wordHtml: Times New Roman + tiêu đề + khối ký", () => {
   const meta = { company: "LAVIPCO", title: "Họp A", date: "2026-10-08", time: "08:00",

@@ -83,7 +83,7 @@
   <div class="brand">
     <div class="glyph">BB</div>
     <div>
-      <h1>Biên bản họp bằng giọng nói<span class="ver">v1.3</span></h1>
+      <h1>Biên bản họp bằng giọng nói<span class="ver">v2.0</span></h1>
       <p>Nói tiếng Việt · máy tự gõ thành biên bản</p>
     </div>
   </div>
@@ -132,12 +132,23 @@
     <div class="card-h">
       <h2>Nội dung biên bản</h2>
       <div class="toolbar">
+        <button class="btn btn-ghost btn-sm" id="btnUndo" disabled title="Hoàn tác xóa">↩ Hoàn tác</button>
         <button class="btn btn-ghost btn-sm" id="btnAdd"><span class="ic">＋</span>Thêm đoạn</button>
         <button class="btn btn-ghost btn-sm" id="btnClear">Xóa hết</button>
       </div>
     </div>
     <div class="live-bar idle" id="liveBar"><span class="mic">🎙️</span><span id="liveTxt">Chưa ghi. Nhấn "Bắt đầu ghi" để nói.</span></div>
+    <div style="padding:8px 12px 0"><input id="search" placeholder="🔍 Tìm trong biên bản..." style="font-size:13px;padding:7px 10px"></div>
     <div class="entries" id="entries"></div>
+    <details id="optPanel" style="margin:4px 12px 0;font-size:12.5px;color:var(--ink-soft)">
+      <summary style="cursor:pointer;padding:6px 0;font-weight:600;color:var(--muted)">⚙️ Tùy chọn nhận dạng</summary>
+      <div style="padding:4px 0 10px">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="optCap" checked style="width:auto">Tự viết hoa đầu câu</label>
+        <label style="display:block;margin-bottom:4px">Từ điển sửa thuật ngữ (mỗi dòng <b>sai=đúng</b>):</label>
+        <textarea id="optDict" rows="4" placeholder="led=LED&#10;thgt=THGT&#10;hps=HPS" style="font-size:12.5px;font-family:monospace"></textarea>
+        <div class="hint" style="margin-top:4px">Áp dụng cho câu máy vừa nhận, không đụng phần anh gõ tay.</div>
+      </div>
+    </details>
     <div class="card-b" style="border-top:1px solid var(--line)">
       <div class="toolbar">
         <button class="btn btn-amber" id="btnWord" style="flex:1"><span class="ic">⭳</span>Tải biên bản (Word)</button>
@@ -165,7 +176,11 @@
   function fileStem(meta){meta=meta||{};var t=(meta.title||"").replace(/[^\p{L}\p{N}]+/gu,"_").replace(/^_+|_+$/g,"").slice(0,40);if(!t)t="cuoc_hop";return"Bien_ban_"+t+"_"+(meta.date||"");}
   function plainText(meta,entries){meta=meta||{};var out=[],lines=bodyLines(entries);if(meta.company)out.push(String(meta.company).toUpperCase());out.push("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM");out.push("Độc lập - Tự do - Hạnh phúc");out.push("","BIÊN BẢN CUỘC HỌP","");out.push("Nội dung: "+(meta.title||"(chưa đặt tiêu đề)"));if(meta.date||meta.time)out.push("Thời gian: "+(meta.time?meta.time+" - ":"")+dmy(meta.date));if(meta.place)out.push("Địa điểm: "+meta.place);if(meta.chair)out.push("Chủ trì: "+meta.chair);if(meta.sec)out.push("Thư ký: "+meta.sec);if(meta.att){out.push("Thành phần tham dự:");String(meta.att).split("\n").forEach(function(a){if(a.trim())out.push("  - "+a.trim());});}out.push("","NỘI DUNG CUỘC HỌP:","");lines.forEach(function(e,i){var who=(e.speaker||"").trim()||("Ý kiến "+(i+1));out.push(who+(e.time?" ("+e.time+")":"")+":");out.push((e.text||"").trim());out.push("");});out.push("","Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất.");out.push("","        THƯ KÝ                              CHỦ TRÌ");out.push("","","  "+(meta.sec||"")+"                         "+(meta.chair||""));return out.join("\n");}
   function wordHtml(meta,entries){meta=meta||{};var lines=bodyLines(entries);var rows=lines.map(function(e,i){var head=(e.speaker||"").trim()||("Ý kiến "+(i+1));if(e.time)head+=" — "+e.time;return'<p style="margin:0 0 4pt"><b>'+esc(head)+':</b></p><p style="margin:0 0 10pt;text-align:justify">'+esc((e.text||"").trim()).replace(/\n/g,"<br>")+'</p>';}).join("");var attHtml=meta.att?String(meta.att).split("\n").filter(function(a){return a.trim();}).map(function(a){return'<p style="margin:0 0 2pt">- '+esc(a.trim())+'</p>';}).join(""):"";return'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>@page{size:A4;margin:2cm 2cm 2cm 3cm} body{font-family:"Times New Roman",serif;font-size:13pt;color:#000;line-height:1.4} h1{font-size:15pt;text-align:center;margin:0 0 4pt} .sub{text-align:center;font-style:italic;margin:0 0 14pt} .meta p{margin:0 0 3pt} .sec{font-weight:bold;margin:12pt 0 6pt}</style></head><body>'+'<table width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8pt"><tr><td width="46%" align="center" valign="top">'+(meta.company?'<b style="text-transform:uppercase">'+esc(meta.company)+'</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:110px;font-size:2pt">&#160;</td></tr></table>':'')+'</td><td width="54%" align="center" valign="top"><b style="font-size:12pt;white-space:nowrap">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:150px;font-size:2pt">&#160;</td></tr></table></td></tr></table><h1>BIÊN BẢN CUỘC HỌP</h1><p class="sub">'+esc(meta.place?meta.place+", ":"")+esc(dmy(meta.date))+'</p><div class="meta"><p><b>Nội dung họp:</b> '+esc(meta.title||"(chưa đặt tiêu đề)")+'</p>'+((meta.date||meta.time)?'<p><b>Thời gian:</b> '+esc(meta.time?meta.time+" - ":"")+esc(dmy(meta.date))+'</p>':'')+(meta.place?'<p><b>Địa điểm:</b> '+esc(meta.place)+'</p>':'')+(meta.chair?'<p><b>Chủ trì:</b> '+esc(meta.chair)+'</p>':'')+(meta.sec?'<p><b>Thư ký:</b> '+esc(meta.sec)+'</p>':'')+(attHtml?'<p><b>Thành phần tham dự:</b></p>'+attHtml:'')+'</div><p class="sec">NỘI DUNG CUỘC HỌP</p>'+rows+'<p style="margin:14pt 0 0;text-align:justify">Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất thông qua.</p><table width="100%" cellspacing="0" cellpadding="0" style="margin-top:22pt"><tr><td width="50%" align="center" valign="top"><b>THƯ KÝ</b><br><i style="font-size:11pt">(Ký, ghi rõ họ tên)</i></td><td width="50%" align="center" valign="top"><b>CHỦ TRÌ</b><br><i style="font-size:11pt">(Ký, ghi rõ họ tên)</i></td></tr><tr><td align="center" style="padding-top:46pt">'+esc(meta.sec)+'</td><td align="center" style="padding-top:46pt">'+esc(meta.chair)+'</td></tr></table></body></html>';}
-  root.BBLogic={fmtTime:fmtTime,dmy:dmy,esc:esc,appendText:appendText,extractSpeech:extractSpeech,bodyLines:bodyLines,fileStem:fileStem,plainText:plainText,wordHtml:wordHtml};
+  function autoCapitalize(text){if(!text)return"";var s=String(text),out="",capNext=true;for(var i=0;i<s.length;i++){var ch=s[i];if(capNext&&/\S/.test(ch)){out+=ch.toUpperCase();capNext=false;}else out+=ch;if(/[.!?…]/.test(ch))capNext=true;}return out;}
+  function parseDict(text){if(!text)return[];return String(text).split("\n").map(function(line){var i=line.indexOf("=");if(i<=0)return null;var from=line.slice(0,i).trim(),to=line.slice(i+1).trim();if(!from||!to)return null;return{from:from,to:to};}).filter(function(x){return x;});}
+  function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
+  function applyDict(text,dict){if(!text||!dict||!dict.length)return text||"";var out=String(text);dict.forEach(function(d){var re=new RegExp("(^|[^\\p{L}\\p{N}])("+escRe(d.from)+")(?![\\p{L}\\p{N}])","giu");out=out.replace(re,function(m,pre){return pre+d.to;});});return out;}
+  root.BBLogic={fmtTime:fmtTime,dmy:dmy,esc:esc,appendText:appendText,extractSpeech:extractSpeech,bodyLines:bodyLines,fileStem:fileStem,plainText:plainText,wordHtml:wordHtml,autoCapitalize:autoCapitalize,parseDict:parseDict,applyDict:applyDict};
 })(window);
 </script>
 
@@ -405,6 +420,7 @@
   var entries=[], activeId=null, recording=false, wantRecord=false;
   var elapsed=0, timerBase=0, startTs=0, timerInt=null, rec=null;
   var retryN=0, restartTimer=null, saveWarned=false, lastError=null;
+  var undoStack=[], dict=[], autoCap=true, saveTimer=null;
   var $=function(id){return document.getElementById(id);};
   var ent=$("entries"), liveTxt=$("liveTxt"), liveBar=$("liveBar");
 
@@ -413,8 +429,10 @@
   function collectMeta(){var ids=["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"],o={};ids.forEach(function(i){o[i]=$(i).value;});return o;}
   function meta(){var m=collectMeta();return{company:m.mCompany||"",title:m.mTitle||"",date:m.mDate||"",time:m.mTime||"",place:m.mPlace||"",chair:m.mChair||"",sec:m.mSec||"",att:m.mAtt||""};}
 
-  function save(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
-  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries)entries=d.entries;if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}}catch(e){}}
+  function saveNow(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed,dict:$("optDict").value,autoCap:autoCap}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
+  function save(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,400);} // gộp ghi, đỡ hao khi họp dài
+  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries){entries=d.entries;entries.forEach(function(e){if(!e.id)e.id=uid();if(typeof e.text!=="string")e.text="";if(typeof e.speaker!=="string")e.speaker="";});}if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}if(typeof d.dict==="string")$("optDict").value=d.dict;if(typeof d.autoCap==="boolean"){autoCap=d.autoCap;$("optCap").checked=autoCap;}dict=L.parseDict($("optDict").value);}catch(e){}}
+  var DEFAULT_DICT="led=LED\nthgt=THGT\nhps=HPS\niot=IoT\nlavipco=LAVIPCO\nkwh=kWh\nkw=kW";
   ["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"].forEach(function(i){$(i).addEventListener("input",save);});
 
   var toastTo;
@@ -429,29 +447,104 @@
   function uid(){return"e"+Date.now()+Math.floor(Math.random()*1000);}
   function nowTime(){return new Date().toTimeString().slice(0,5);}
 
-  function addEntry(speaker,focusIt){var e={id:uid(),time:nowTime(),speaker:speaker||"",text:""};entries.push(e);activeId=e.id;render();if(focusIt){var n=document.querySelector('[data-txt="'+e.id+'"]');if(n)n.focus();}save();return e;}
-  function getActive(){var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e)e=addEntry("",false);return e;}
-  function delEntry(id){entries=entries.filter(function(x){return x.id!==id;});if(activeId===id)activeId=entries.length?entries[entries.length-1].id:null;render();save();}
+  // ----- render tăng dần: dựng 1 node cho mỗi đoạn, không dựng lại cả danh sách -----
+  function entryNode(e){
+    var d=document.createElement("div");
+    d.className="entry"+(e.id===activeId&&recording?" active":"");
+    d.setAttribute("data-id",e.id);
+    d.innerHTML='<div class="entry-top"><input class="spk" data-spk="'+e.id+'" placeholder="Người nói / mục" value="'+L.esc(e.speaker)+'"><span class="tstamp">'+L.esc(e.time)+'</span><button class="del" data-del="'+e.id+'" title="Xóa đoạn">✕</button></div><textarea class="etext" data-txt="'+e.id+'" rows="1" placeholder="Nội dung...">'+L.esc(e.text)+'</textarea>';
+    bindNode(d,e);
+    return d;
+  }
+  function bindNode(node,e){
+    var ta=node.querySelector("[data-txt]"), ip=node.querySelector("[data-spk]"), del=node.querySelector("[data-del]");
+    ta.addEventListener("input",function(){e.text=ta.value;save();autoGrow(ta);});
+    ta.addEventListener("blur",function(){if(e.id===activeId&&pendingChunk)flushPending(e,ta);if(ta.value!==e.text){ta.value=e.text;autoGrow(ta);}});
+    ip.addEventListener("input",function(){e.speaker=ip.value;save();});
+    del.addEventListener("click",function(){delEntry(e.id);});
+    setTimeout(function(){autoGrow(ta);},0);
+  }
+  function emptyMsg(){ent.innerHTML='<div class="empty"><div class="big">🎙️</div><p>Chưa có nội dung. Nhấn <b>Bắt đầu ghi</b> để nói, hoặc <b>Thêm đoạn</b> để gõ tay.</p></div>';}
+  function nodeOf(id){return ent.querySelector('.entry[data-id="'+id+'"]');}
 
-  function render(){
-    if(!entries.length){ent.innerHTML='<div class="empty"><div class="big">🎙️</div><p>Chưa có nội dung. Nhấn <b>Bắt đầu ghi</b> để nói, hoặc <b>Thêm đoạn</b> để gõ tay.</p></div>';return;}
+  function render(){ // chỉ dùng khi nạp lại / xóa hết
     ent.innerHTML="";
-    entries.forEach(function(e){
-      var d=document.createElement("div");
-      d.className="entry"+(e.id===activeId&&recording?" active":"");
-      d.innerHTML='<div class="entry-top"><input class="spk" data-spk="'+e.id+'" placeholder="Người nói / mục" value="'+L.esc(e.speaker)+'"><span class="tstamp">'+L.esc(e.time)+'</span><button class="del" data-del="'+e.id+'" title="Xóa đoạn">✕</button></div><textarea class="etext" data-txt="'+e.id+'" rows="1" placeholder="Nội dung...">'+L.esc(e.text)+'</textarea>';
-      ent.appendChild(d);
-      autoGrow(d.querySelector(".etext"));
-    });
-    bindEntry();
+    if(!entries.length){emptyMsg();return;}
+    var frag=document.createDocumentFragment();
+    entries.forEach(function(e){frag.appendChild(entryNode(e));});
+    ent.appendChild(frag);
+    applySearch();
+  }
+  function setActiveClass(){ // chỉ bật/tắt viền đoạn đang ghi, không dựng lại DOM
+    Array.prototype.forEach.call(ent.querySelectorAll(".entry.active"),function(n){n.classList.remove("active");});
+    if(recording&&activeId){var n=nodeOf(activeId);if(n)n.classList.add("active");}
+  }
+
+  function addEntry(speaker,focusIt){
+    if(!entries.length)ent.innerHTML="";
+    var e={id:uid(),time:nowTime(),speaker:speaker||"",text:""};entries.push(e);activeId=e.id;
+    ent.appendChild(entryNode(e));setActiveClass();applySearch();
+    if(focusIt){var n=nodeOf(e.id);if(n){var t=n.querySelector("[data-txt]");if(t)t.focus();}}
+    save();return e;
+  }
+  function getActive(){var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e)e=addEntry("",false);return e;}
+  function pushUndo(a){undoStack.push(a);if(undoStack.length>50)undoStack.shift();refreshUndo();}
+  function delEntry(id){
+    var idx=-1,rem=null;entries.forEach(function(x,i){if(x.id===id){idx=i;rem=x;}});
+    if(idx<0)return;
+    pushUndo({type:"del",entry:rem,index:idx});
+    entries.splice(idx,1);
+    var n=nodeOf(id);if(n)n.remove();
+    if(activeId===id)activeId=entries.length?entries[entries.length-1].id:null;
+    setActiveClass();
+    if(!entries.length)emptyMsg();
+    save();
   }
   function autoGrow(ta){if(!ta)return;ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";}
-  function bindEntry(){
-    Array.prototype.forEach.call(document.querySelectorAll("[data-txt]"),function(ta){ta.addEventListener("input",function(){var e=entries.filter(function(x){return x.id===ta.getAttribute("data-txt");})[0];if(e){e.text=ta.value;save();}autoGrow(ta);});ta.addEventListener("blur",function(){var e=entries.filter(function(x){return x.id===ta.getAttribute("data-txt");})[0];if(e&&ta.value!==e.text){ta.value=e.text;autoGrow(ta);}});});
-    Array.prototype.forEach.call(document.querySelectorAll("[data-spk]"),function(ip){ip.addEventListener("input",function(){var e=entries.filter(function(x){return x.id===ip.getAttribute("data-spk");})[0];if(e){e.speaker=ip.value;save();}});});
-    Array.prototype.forEach.call(document.querySelectorAll("[data-del]"),function(b){b.addEventListener("click",function(){delEntry(b.getAttribute("data-del"));});});
+
+  // tìm kiếm: ẩn đoạn không khớp. Luôn giữ hiện đoạn đang ghi (khỏi "ghi mà không thấy").
+  function applySearch(){
+    var q=($("search").value||"").trim().toLowerCase();
+    Array.prototype.forEach.call(ent.querySelectorAll(".entry"),function(n){
+      var id=n.getAttribute("data-id");
+      var e=entries.filter(function(x){return x.id===id;})[0];
+      if(!e)return;
+      var hit=!q||((e.speaker||"")+" "+(e.text||"")).toLowerCase().indexOf(q)>=0;
+      if(recording&&id===activeId)hit=true;
+      n.style.display=hit?"":"none";
+    });
   }
-  function updateActiveText(finalChunk){var e=getActive();e.text=L.appendText(e.text,finalChunk);var ta=document.querySelector('[data-txt="'+e.id+'"]');if(ta){if(document.activeElement!==ta){ta.value=e.text;autoGrow(ta);}}else render();save();}
+  // hoàn tác
+  function refreshUndo(){$("btnUndo").disabled=!undoStack.length;}
+  function doUndo(){
+    var a=undoStack.pop();if(!a){return;}
+    if(a.type==="del"){entries.splice(a.index,0,a.entry);if(recording&&!activeId)activeId=a.entry.id;rebuildFrom();toast("Đã hoàn tác xóa.");}
+    else if(a.type==="clear"){entries=a.entries;elapsed=a.elapsed;activeId=a.activeId||null;renderTimer();rebuildFrom();toast("Đã khôi phục nội dung.");}
+    refreshUndo();save();
+  }
+  function rebuildFrom(){render();setActiveClass();}
+
+  var pendingChunk="";
+  function flushPending(e,ta){
+    if(!pendingChunk)return;
+    var chunk=dict.length?L.applyDict(pendingChunk,dict):pendingChunk;pendingChunk="";
+    e.text=L.appendText(e.text,chunk);
+    if(autoCap)e.text=L.autoCapitalize(e.text);
+    if(ta){ta.value=e.text;autoGrow(ta);}
+  }
+  function updateActiveText(finalChunk){
+    var e=getActive();
+    var n=nodeOf(e.id), ta=n?n.querySelector("[data-txt]"):null;
+    // Đang gõ tay đúng đoạn này → đệm lại, nối sau khi rời ô (không đụng phần gõ tay)
+    if(ta&&document.activeElement===ta){pendingChunk+=(pendingChunk?" ":"")+finalChunk;save();return;}
+    pendingChunk+=(pendingChunk?" ":"")+finalChunk;
+    flushPending(e,ta);
+    if(!ta){render();}
+    else if(recording&&n){applySearch();if(nearBottom(n))n.scrollIntoView({block:"nearest"});}
+    save();
+  }
+  // chỉ tự cuộn khi đoạn đang ghi còn gần cuối màn hình (người dùng đang theo dõi)
+  function nearBottom(n){var r=n.getBoundingClientRect();return r.top<(window.innerHeight||800)+120;}
 
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   function tryStart(){
@@ -482,15 +575,16 @@
     };
     return r;
   }
-  function setLive(){recording=true;$("status").classList.add("live");$("statusTxt").textContent="Đang ghi";liveBar.classList.remove("idle");liveTxt.textContent="Đang nghe…";$("recLbl").textContent="Tạm dừng";$("btnRec").classList.remove("btn-rec");$("btnRec").classList.add("btn-stop");$("btnRec").querySelector(".ic").textContent="❚❚";$("btnSpeaker").disabled=false;$("btnStop").disabled=false;render();}
-  function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();render();}
+  function setLive(){recording=true;$("status").classList.add("live");$("statusTxt").textContent="Đang ghi";liveBar.classList.remove("idle");liveTxt.textContent="Đang nghe…";$("recLbl").textContent="Tạm dừng";$("btnRec").classList.remove("btn-rec");$("btnRec").classList.add("btn-stop");$("btnRec").querySelector(".ic").textContent="❚❚";$("btnSpeaker").disabled=false;$("btnStop").disabled=false;setActiveClass();}
+  function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();setActiveClass();}
 
   function startRec(){
     if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
     banner("");requestMic(false);retryN=0;lastError=null;clearTimeout(restartTimer);wantRecord=true;if(!rec)rec=buildRec();try{rec.start();}catch(e){}setLive();beginTimer();
   }
-  function pauseRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();}
-  function stopRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}setIdle();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
+  function flushActiveNow(){if(!pendingChunk)return;var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e){pendingChunk="";return;}var n=nodeOf(e.id),ta=n?n.querySelector("[data-txt]"):null;flushPending(e,ta);}
+  function pauseRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();}
+  function stopRec(){wantRecord=false;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
 
   function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});dl(name,blob);}
   function dlBytes(name,bytes,type){dl(name,new Blob([bytes],{type:type}));}
@@ -531,16 +625,22 @@
   $("btnStop").addEventListener("click",stopRec);
   $("btnSpeaker").addEventListener("click",function(){var name=prompt("Tên người nói tiếp theo (để trống nếu chưa rõ):","");addEntry(name||"",false);if(recording)liveTxt.textContent="Đang nghe…";});
   $("btnAdd").addEventListener("click",function(){addEntry("",true);});
-  $("btnClear").addEventListener("click",function(){if(!entries.length)return;if(confirm("Xóa toàn bộ nội dung biên bản? Không khôi phục được.")){entries=[];activeId=null;elapsed=0;timerBase=0;renderTimer();render();save();toast("Đã xóa hết.");}});
+  $("btnClear").addEventListener("click",function(){if(!entries.length)return;if(confirm("Xóa toàn bộ nội dung biên bản?")){pushUndo({type:"clear",entries:entries.slice(),elapsed:elapsed,activeId:activeId});entries=[];activeId=null;elapsed=0;timerBase=0;renderTimer();render();save();toast("Đã xóa hết — bấm Hoàn tác nếu lỡ tay.");}});
+  $("btnUndo").addEventListener("click",doUndo);
+  $("search").addEventListener("input",applySearch);
+  $("optCap").addEventListener("change",function(){autoCap=$("optCap").checked;save();});
+  $("optDict").addEventListener("input",function(){dict=L.parseDict($("optDict").value);save();});
   $("btnWord").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}try{var bytes=window.BBDocx.buildDocx(meta(),entries);dlBytes(L.fileStem(meta())+".docx",bytes,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");toast("Đã tải file Word (.docx).");}catch(e){download(L.fileStem(meta())+".doc",L.wordHtml(meta(),entries),"application/msword");toast("Đã tải file Word (.doc).");}});
   $("btnTxt").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".txt",L.plainText(meta(),entries),"text/plain;charset=utf-8");toast("Đã tải file .txt.");});
   $("btnCopy").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để sao chép.");return;}var txt=L.plainText(meta(),entries);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép biên bản.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
   function fallbackCopy(txt){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Đã sao chép.");}catch(e){toast("Không sao chép được.");}document.body.removeChild(ta);}
 
-  window.addEventListener("beforeunload",function(e){if(recording||entries.length){e.preventDefault();e.returnValue="";}});
+  window.addEventListener("beforeunload",function(e){saveNow();if(recording||entries.length){e.preventDefault();e.returnValue="";}});
+  window.addEventListener("pagehide",saveNow); // iOS Safari không luôn bắn beforeunload
+  document.addEventListener("visibilitychange",function(){if(document.hidden)saveNow();});
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
-  load();renderTimer();setIdle();
+  load();if(!$("optDict").value.trim())$("optDict").value=DEFAULT_DICT;dict=L.parseDict($("optDict").value);render();renderTimer();setIdle();
   askPermissions();
   var onceGesture=function(){askPermissions();document.removeEventListener("pointerdown",onceGesture);};
   document.addEventListener("pointerdown",onceGesture);

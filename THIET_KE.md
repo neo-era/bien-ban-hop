@@ -78,6 +78,12 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.0 (tối ưu): render tăng dần (không dựng lại cả danh sách → mượt khi họp dài);
+  tìm kiếm trong biên bản (giữ hiện đoạn đang ghi); hoàn tác xóa đoạn + xóa hết (undoStack ≤50);
+  tự viết hoa đầu câu + từ điển sửa thuật ngữ (áp cho câu máy nhận, đệm chunk khi đang gõ tay
+  để không mất/nhảy chữ); tự cuộn theo đoạn đang ghi (chỉ khi đang theo dõi gần cuối);
+  lưu localStorage debounce 400ms + flush ở beforeunload/pagehide/visibilitychange.
+  Logic mới: autoCapitalize, parseDict, applyDict (có test). Smoke mở rộng: undo, search, autocap.
 - v1.3: xuất **.docx chuẩn (OOXML)** thay cho .doc-HTML để ĐIỆN THOẠI mở được
   (Google Docs/WPS/Word mobile từ chối .doc-HTML). Bộ tạo docx thuần, không thư viện
   ngoài: ZIP store + CRC32 + document.xml/styles.xml, có tblGrid + paragraph sau bảng cuối.

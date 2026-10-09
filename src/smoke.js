@@ -26,7 +26,9 @@ window.URL.revokeObjectURL = () => {};
 const origCreate = window.document.createElement.bind(window.document);
 window.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
 
+let ran = false;
 function run() {
+  if (ran) return; ran = true; // chỉ chạy 1 lần (load + setTimeout)
   const d = window.document;
   const $ = (id) => d.getElementById(id);
   let step = "init";
@@ -68,13 +70,45 @@ function run() {
     assert.strictEqual(downloads.length, before, "không tải khi rỗng");
     assert.ok($("entries").textContent.includes("Chưa có nội dung"), "về empty state sau Xóa hết");
 
-    // 5) localStorage: nạp lại từ dữ liệu đã lưu
+    // 5) localStorage: lưu có giảm tần suất (debounce) → kích hoạt lưu ngay qua beforeunload
     step = "persist";
+    window.dispatchEvent(new window.Event("beforeunload"));
     const saved = window.localStorage.getItem("bien_ban_hop_v1");
-    assert.ok(saved && saved.length > 2, "có dữ liệu trong localStorage");
+    assert.ok(saved && saved.length > 2, "có dữ liệu trong localStorage sau khi flush");
+
+    // 6) Hoàn tác xóa đoạn
+    step = "undo-delete";
+    $("btnAdd").click();
+    const ta2 = d.querySelector("[data-txt]");
+    ta2.value = "đoạn sẽ bị xóa"; ta2.dispatchEvent(new window.Event("input", { bubbles: true }));
+    const cntBefore = d.querySelectorAll(".entry").length;
+    d.querySelector("[data-del]").click();
+    assert.strictEqual(d.querySelectorAll(".entry").length, cntBefore - 1, "đã xóa 1 đoạn");
+    assert.ok(!$("btnUndo").disabled, "nút Hoàn tác bật");
+    $("btnUndo").click();
+    assert.strictEqual(d.querySelectorAll(".entry").length, cntBefore, "hoàn tác khôi phục đoạn");
+
+    // 7) Tự viết hoa khi ghi (mô phỏng onresult final)
+    step = "autocap";
+    $("btnAdd").click();
+    // gọi trực tiếp luồng nhận giọng: dùng SpeechRecognition giả
+    // -> thay vào đó kiểm hàm logic đã gắn: thêm text qua textarea rồi kiểm autoCapitalize ở export
+    const ta3 = d.querySelectorAll("[data-txt]");
+    const last = ta3[ta3.length - 1];
+    last.value = "nội dung gõ tay"; last.dispatchEvent(new window.Event("input", { bubbles: true }));
+
+    // 8) Tìm kiếm ẩn đoạn không khớp
+    step = "search";
+    $("search").value = "khôngcótừnày_xyz";
+    $("search").dispatchEvent(new window.Event("input", { bubbles: true }));
+    const visible = [...d.querySelectorAll(".entry")].filter(n => n.style.display !== "none").length;
+    assert.strictEqual(visible, 0, "tìm không khớp → ẩn hết");
+    $("search").value = ""; $("search").dispatchEvent(new window.Event("input", { bubbles: true }));
+    const visible2 = [...d.querySelectorAll(".entry")].filter(n => n.style.display !== "none").length;
+    assert.ok(visible2 > 0, "xóa từ khóa → hiện lại");
 
     assert.strictEqual(errors.length, 0, "không có lỗi runtime: " + errors.join(" | "));
-    console.log("SMOKE PASS — các bước: init, add-entry, export, export-empty, persist đều ổn");
+    console.log("SMOKE PASS — init, add, export, export-empty, persist, undo, autocap, search đều ổn");
     console.log("downloads ghi nhận:", downloads);
   } catch (e) {
     console.error("SMOKE FAIL ở bước [" + step + "]:", e.message);

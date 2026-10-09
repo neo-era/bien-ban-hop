@@ -129,9 +129,46 @@
 '</tr></table></body></html>';
   }
 
+  // Viết hoa đầu chuỗi và sau dấu kết câu (. ! ? …)
+  function autoCapitalize(text) {
+    if (!text) return "";
+    var s = String(text), out = "", capNext = true;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (capNext && /\S/.test(ch)) { out += ch.toUpperCase(); capNext = false; }
+      else out += ch;
+      if (/[.!?…]/.test(ch)) capNext = true;
+    }
+    return out;
+  }
+
+  // Từ điển sửa thuật ngữ: mỗi dòng "sai=đúng"
+  function parseDict(text) {
+    if (!text) return [];
+    return String(text).split("\n").map(function (line) {
+      var i = line.indexOf("=");
+      if (i <= 0) return null;
+      var from = line.slice(0, i).trim(), to = line.slice(i + 1).trim();
+      if (!from || !to) return null;
+      return { from: from, to: to };
+    }).filter(function (x) { return x; });
+  }
+  function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  // Thay thế theo "từ": biên giới là ký tự không phải chữ/số (unicode)
+  function applyDict(text, dict) {
+    if (!text || !dict || !dict.length) return text || "";
+    var out = String(text);
+    dict.forEach(function (d) {
+      var re = new RegExp("(^|[^\\p{L}\\p{N}])(" + escRe(d.from) + ")(?![\\p{L}\\p{N}])", "giu");
+      out = out.replace(re, function (m, pre) { return pre + d.to; });
+    });
+    return out;
+  }
+
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
     extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
-    entryHead: entryHead, plainText: plainText, wordHtml: wordHtml };
+    entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
+    autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BBLogic = api;
