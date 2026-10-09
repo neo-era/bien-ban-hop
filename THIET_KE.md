@@ -78,6 +78,19 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.2: (1) GHI ÂM SONG SONG + NGHE LẠI: MediaRecorder 24kbps (~10MB/giờ) lưu IndexedDB; mỗi đoạn có nút ▶
+  tua đúng lúc người đó nói (mốc aStart lấy từ kết quả tạm đầu tiên). Chạy được cả iPhone (không có nhận giọng
+  vẫn ghi âm). Tải file ghi âm. (2) Nút ＋ Kết luận / ＋ Phân công (việc–người–hạn) → Word có mục KẾT LUẬN và
+  bảng PHÂN CÔNG kẻ ô. (3) Sửa lỗi khối ký bị xé sang 2 trang (cantSplit + keepNext).
+  Review độc lập bắt lỗi nghiêm trọng TRƯỚC khi phát hành, đã sửa + có E2E tái hiện:
+  · Không đoán cuộc họp mới bằng đồng hồ=0 (tab tắt đột ngột → xóa sạch ghi âm) → dùng meetingId;
+    ghi âm gắn mã cuộc họp; chỉ dọn khi đã >3 cuộc cũ; Hoàn tác Xóa hết lấy lại cả ghi âm.
+  · Bấm nhanh khi chờ cấp micro tạo 2 bộ ghi/micro sáng mãi → mã lần gọi (AUD.gen).
+  · Mốc đoạn ghi âm lấy lúc THỰC SỰ bắt đầu ghi; đồng hồ chốt giây khi tạm dừng, tự lưu mỗi ~5s;
+    mở lại sau khi tắt đột ngột → kéo đồng hồ khớp ghi âm.
+  · findSegment trả null ngoài vùng có ghi âm (không phát bừa); nạp ghi âm cũ gộp chứ không đè;
+    báo khi IndexedDB đầy (onabort); giữ câu nói cuối khi bấm dừng; lọc ký tự điều khiển trong .docx.
+  Build: src/build.js nhúng NGUYÊN VĂN logic.js + docx.js vào index.html (hết chép tay → hết lệch).
 - v2.1: tự kiểm tra phiên bản mới (version.json trên GitHub raw) lúc mở, mỗi 30 phút và khi
   quay lại tab. Chạy web (GitHub Pages) → nút "Cập nhật ngay" tải lại ra bản mới (tạm dừng ghi,
   lưu trước). Chạy file trên máy → không tự ghi đè được (giới hạn trình duyệt) → "Mở bản mới" + link tải.
@@ -105,5 +118,5 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 ## 12. Quy trình phát hành bản mới (để app tự báo cập nhật)
 1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).
 2. Sửa `version.json` → `"version"` cùng số + `"notes"` mô tả ngắn.
-3. `npm test` + `npm run smoke` → pass hết.
+3. `npm test` + `npm run smoke` + `npm run e2e` → pass hết.
 4. Commit + push nhánh `sub1`. Máy đang mở app sẽ thấy thông báo trong ≤30 phút hoặc khi mở lại.

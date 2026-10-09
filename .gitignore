@@ -1,4 +1,6 @@
 node_modules/
 src/logic_inline.js
+src/test_inline.js
 src/ui_check.js
 *.pdf
+__pycache__/

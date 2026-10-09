@@ -44,8 +44,36 @@
 
   function bodyLines(entries) {
     return (entries || []).filter(function (e) {
-      return (e.text || "").trim() || (e.speaker || "").trim();
+      return (e.text || "").trim() || (e.speaker || "").trim() || (e.who || "").trim();
     });
+  }
+
+  // Tách 3 nhóm: ý kiến thường / kết luận / phân công (bỏ mục rỗng)
+  function sections(entries) {
+    var s = { notes: [], conclusions: [], tasks: [] };
+    (entries || []).forEach(function (e) {
+      var txt = (e.text || "").trim();
+      if (e.kind === "ketluan") { if (txt) s.conclusions.push(e); }
+      else if (e.kind === "phancong") { if (txt || (e.who || "").trim()) s.tasks.push(e); }
+      else if (txt || (e.speaker || "").trim()) s.notes.push(e);
+    });
+    return s;
+  }
+
+  // Tìm đoạn ghi âm chứa thời điểm t (giây, theo đồng hồ cuộc họp).
+  // segs: [{id, base, dur}] — base = giây bắt đầu đoạn, dur = độ dài đã ghi.
+  // Trả null nếu t không nằm trong đoạn nào (khoảng tắt ghi âm) → không phát bừa đoạn khác.
+  // Dung sai: trước đoạn ≤3s (chờ cấp micro), sau cuối ≤5s (chunk chưa kịp tới).
+  function findSegment(segs, t) {
+    if (!segs || !segs.length || t === null || t === undefined || isNaN(t)) return null;
+    var sorted = segs.slice().sort(function (a, b) { return a.base - b.base; });
+    for (var i = sorted.length - 1; i >= 0; i--) {
+      var s = sorted[i], d = s.dur || 0;
+      if (t >= s.base - 3 && t <= s.base + d + 5) {
+        return { seg: s, offset: Math.max(0, Math.min(t - s.base, d)) };
+      }
+    }
+    return null;
   }
 
   function fileStem(meta) {
@@ -62,7 +90,7 @@
 
   function plainText(meta, entries) {
     meta = meta || {};
-    var out = [], lines = bodyLines(entries);
+    var out = [], sec = sections(entries), lines = sec.notes;
     if (meta.company) out.push(String(meta.company).toUpperCase());
     out.push("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM");
     out.push("Độc lập - Tự do - Hạnh phúc");
@@ -82,6 +110,21 @@
       out.push((e.text || "").trim());
       out.push("");
     });
+    if (sec.conclusions.length) {
+      out.push("KẾT LUẬN CUỘC HỌP:");
+      sec.conclusions.forEach(function (e, i) { out.push((i + 1) + ". " + (e.text || "").trim()); });
+      out.push("");
+    }
+    if (sec.tasks.length) {
+      out.push("PHÂN CÔNG NHIỆM VỤ:");
+      sec.tasks.forEach(function (e, i) {
+        var line = (i + 1) + ". " + ((e.text || "").trim() || "(chưa ghi nội dung)");
+        if ((e.who || "").trim()) line += " — Người thực hiện: " + e.who.trim();
+        if ((e.due || "").trim()) line += " — Thời hạn: " + e.due.trim();
+        out.push(line);
+      });
+      out.push("");
+    }
     out.push("", "Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất.");
     out.push("", "        THƯ KÝ                              CHỦ TRÌ");
     out.push("", "", "  " + (meta.sec || "") + "                         " + (meta.chair || ""));
@@ -90,13 +133,27 @@
 
   function wordHtml(meta, entries) {
     meta = meta || {};
-    var lines = bodyLines(entries);
+    var sec = sections(entries), lines = sec.notes;
     var rows = lines.map(function (e, i) {
       var head = (e.speaker || "").trim() || ("Ý kiến " + (i + 1));
       if (e.time) head += " — " + e.time;
       return '<p style="margin:0 0 4pt"><b>' + esc(head) + ':</b></p>' +
              '<p style="margin:0 0 10pt;text-align:justify">' + esc((e.text || "").trim()).replace(/\n/g, "<br>") + '</p>';
     }).join("");
+    if (sec.conclusions.length) {
+      rows += '<p class="sec">KẾT LUẬN CUỘC HỌP</p>' + sec.conclusions.map(function (e, i) {
+        return '<p style="margin:0 0 6pt;text-align:justify">' + (i + 1) + '. ' + esc((e.text || "").trim()) + '</p>';
+      }).join("");
+    }
+    if (sec.tasks.length) {
+      var td = 'style="border:1px solid #000;padding:3pt 5pt;vertical-align:top"';
+      rows += '<p class="sec">PHÂN CÔNG NHIỆM VỤ</p><table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse">' +
+        '<tr><th ' + td + '>STT</th><th ' + td + '>Nội dung công việc</th><th ' + td + '>Người thực hiện</th><th ' + td + '>Thời hạn</th></tr>' +
+        sec.tasks.map(function (e, i) {
+          return '<tr><td ' + td + ' align="center">' + (i + 1) + '</td><td ' + td + '>' + esc((e.text || "").trim()) +
+            '</td><td ' + td + '>' + esc((e.who || "").trim()) + '</td><td ' + td + '>' + esc((e.due || "").trim()) + '</td></tr>';
+        }).join("") + '</table>';
+    }
     var attHtml = meta.att ? String(meta.att).split("\n").filter(function (a) { return a.trim(); })
       .map(function (a) { return '<p style="margin:0 0 2pt">- ' + esc(a.trim()) + '</p>'; }).join("") : "";
     return '' +
@@ -182,7 +239,7 @@
     extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
-    cmpVersion: cmpVersion };
+    cmpVersion: cmpVersion, sections: sections, findSegment: findSegment };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BBLogic = api;

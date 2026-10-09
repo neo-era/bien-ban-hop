@@ -41,7 +41,8 @@ function updatePhase(d, $) {
       assert.strictEqual($("updateBar").style.display, "flex", "có bản mới 9.9 → hiện thanh cập nhật");
       assert.ok($("updateMsg").textContent.includes("9.9"), "thông báo ghi đúng số phiên bản");
       assert.strictEqual($("updateBtn").textContent, "Cập nhật ngay", "chạy web (http) → nút Cập nhật ngay");
-      assert.strictEqual($("verBadge").textContent, "v2.1", "nhãn version đồng bộ APP_VERSION");
+      const appVer = (html.match(/var APP_VERSION="([\d.]+)"/) || [])[1];
+      assert.strictEqual($("verBadge").textContent, "v" + appVer, "nhãn version đồng bộ APP_VERSION");
 
       step = "update-later";
       $("updateLater").click();
@@ -51,7 +52,7 @@ function updatePhase(d, $) {
       assert.strictEqual($("updateBar").style.display, "none", "đã 'Để sau' bản 9.9 → không nhắc lại trong phiên");
 
       step = "update-none";
-      fakeVer = "2.1"; // bằng bản đang dùng
+      fakeVer = (html.match(/var APP_VERSION="([\d.]+)"/) || [])[1]; // bằng bản đang dùng
       d.dispatchEvent(new window.Event("visibilitychange"));
       await sleep(100);
       assert.strictEqual($("updateBar").style.display, "none", "không có bản mới → không hiện");

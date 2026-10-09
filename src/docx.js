@@ -7,7 +7,7 @@
   // ---- escape XML ----
   function xmlEsc(s) {
     if (s === null || s === undefined) return "";
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    return String(s).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
   }
 
@@ -33,6 +33,7 @@
   function para(runsXml, opt) {
     opt = opt || {};
     var ppr = "<w:pPr>";
+    if (opt.keepNext) ppr += "<w:keepNext/>";
     if (opt.align) ppr += '<w:jc w:val="' + opt.align + '"/>';
     var sa = (opt.spaceAfter !== undefined) ? opt.spaceAfter : 120; // twips 6pt
     var sb = opt.spaceBefore || 0;
@@ -58,18 +59,44 @@
       '<w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>' +
       '<w:tblLayout w:type="fixed"/></w:tblPr>' +
       '<w:tblGrid><w:gridCol w:w="' + leftDxa + '"/><w:gridCol w:w="' + rightDxa + '"/></w:tblGrid>' +
-      '<w:tr>' + cell(leftXml, leftPct) + cell(rightXml, rightPct) + '</w:tr></w:tbl>';
+      '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + cell(leftXml, leftPct) + cell(rightXml, rightPct) + '</w:tr></w:tbl>';
   }
 
-  function bodyLines(entries) {
-    return (entries || []).filter(function (e) {
-      return (e.text || "").trim() || (e.speaker || "").trim();
+  // Tách ý kiến thường / kết luận / phân công (cùng quy tắc với logic.js → sections)
+  function sections(entries) {
+    var s = { notes: [], conclusions: [], tasks: [] };
+    (entries || []).forEach(function (e) {
+      var txt = (e.text || "").trim();
+      if (e.kind === "ketluan") { if (txt) s.conclusions.push(e); }
+      else if (e.kind === "phancong") { if (txt || (e.who || "").trim()) s.tasks.push(e); }
+      else if (txt || (e.speaker || "").trim()) s.notes.push(e);
     });
+    return s;
+  }
+
+  // Bảng có kẻ ô (dùng cho Phân công). widths = mảng dxa, rows = mảng mảng chuỗi
+  function gridTable(widths, header, rows) {
+    var B = '<w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/>' +
+      '<w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/>' +
+      '<w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/>';
+    function tc(text, w, opt) {
+      return '<w:tc><w:tcPr><w:tcW w:w="' + w + '" w:type="dxa"/></w:tcPr>' +
+        para(run(text, { b: !!opt.b }), { align: opt.align || "left", spaceAfter: 0 }) + '</w:tc>';
+    }
+    var xml = '<w:tbl><w:tblPr><w:tblW w:w="' + widths.reduce(function (a, c) { return a + c; }, 0) + '" w:type="dxa"/>' +
+      '<w:tblBorders>' + B + '</w:tblBorders><w:tblLayout w:type="fixed"/>' +
+      '<w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
+      '<w:tblGrid>' + widths.map(function (w) { return '<w:gridCol w:w="' + w + '"/>'; }).join("") + '</w:tblGrid>';
+    xml += '<w:tr>' + header.map(function (h, i) { return tc(h, widths[i], { b: true, align: "center" }); }).join("") + '</w:tr>';
+    rows.forEach(function (r) {
+      xml += '<w:tr>' + r.map(function (c, i) { return tc(c, widths[i], { align: i === 0 ? "center" : "left" }); }).join("") + '</w:tr>';
+    });
+    return xml + '</w:tbl>';
   }
 
   function buildDocumentXml(meta, entries) {
     meta = meta || {};
-    var lines = bodyLines(entries);
+    var sec = sections(entries), lines = sec.notes;
     var b = [];
 
     // ===== Header: công ty (trái) | Quốc hiệu - Tiêu ngữ (phải) =====
@@ -113,7 +140,26 @@
       b.push(para(runs, { align: "both", spaceAfter: 160 }));
     });
 
-    b.push(para(run("Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất thông qua.", {}), { align: "both", spaceBefore: 120, spaceAfter: 200 }));
+    // ===== Kết luận =====
+    if (sec.conclusions.length) {
+      b.push(para(run("KẾT LUẬN CUỘC HỌP", { b: true }), { spaceBefore: 160, spaceAfter: 80 }));
+      sec.conclusions.forEach(function (e, i) {
+        b.push(para(run((i + 1) + ". " + (e.text || "").trim(), {}), { align: "both", spaceAfter: 100 }));
+      });
+    }
+    // ===== Phân công (bảng kẻ ô) =====
+    if (sec.tasks.length) {
+      b.push(para(run("PHÂN CÔNG NHIỆM VỤ", { b: true }), { spaceBefore: 160, spaceAfter: 80 }));
+      // tổng = TEXT_W (9355 dxa): STT | Nội dung | Người | Hạn
+      b.push(gridTable([700, 4655, 2400, 1600],
+        ["STT", "Nội dung công việc", "Người thực hiện", "Thời hạn"],
+        sec.tasks.map(function (e, i) {
+          return [String(i + 1), (e.text || "").trim(), (e.who || "").trim(), (e.due || "").trim()];
+        })));
+      b.push(emptyPara());
+    }
+
+    b.push(para(run("Cuộc họp kết thúc cùng ngày. Biên bản đã được đọc lại cho các thành viên cùng nghe và thống nhất thông qua.", {}), { align: "both", spaceBefore: 120, spaceAfter: 200, keepNext: true }));
 
     // ===== Khối ký =====
     var skLeft = para(run("THƯ KÝ", { b: true }), { align: "center", spaceAfter: 0 }) +

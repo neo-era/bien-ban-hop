@@ -181,6 +181,73 @@ test("cmpVersion: chịu được rỗng/rác", () => {
   assert.strictEqual(L.cmpVersion("", ""), 0);
 });
 
+// ---------- sections (Kết luận / Phân công) ----------
+const MIX = [
+  { id: "1", time: "08:00", speaker: "Ô. A", text: "ý kiến thường" },
+  { id: "2", time: "08:10", kind: "ketluan", text: "Thống nhất triển khai quý 4" },
+  { id: "3", time: "08:12", kind: "phancong", text: "Lập dự toán", who: "Tổ dự toán", due: "15/10" },
+  { id: "4", time: "08:13", kind: "ketluan", text: "   " },          // rỗng → bỏ
+  { id: "5", time: "08:14", kind: "phancong", text: "", who: "" },     // rỗng → bỏ
+  { id: "6", time: "08:15", speaker: "", text: "ý kiến 2" },
+];
+test("sections: tách đúng 3 nhóm, bỏ mục rỗng", () => {
+  const s = L.sections(MIX);
+  assert.deepStrictEqual(s.notes.map((e) => e.id), ["1", "6"]);
+  assert.deepStrictEqual(s.conclusions.map((e) => e.id), ["2"]);
+  assert.deepStrictEqual(s.tasks.map((e) => e.id), ["3"]);
+});
+test("sections: danh sách rỗng/null an toàn", () => {
+  const s = L.sections(null);
+  assert.strictEqual(s.notes.length + s.conclusions.length + s.tasks.length, 0);
+});
+test("plainText: Ý kiến N chỉ đếm trên ý kiến thường, không đếm Kết luận/Phân công", () => {
+  const t = L.plainText({ title: "T" }, MIX);
+  assert.ok(t.includes("Ý kiến 2"), "ý kiến không tên thứ 2 trong nhóm thường");
+  assert.ok(!t.includes("Ý kiến 3"));
+});
+test("plainText: có mục KẾT LUẬN và PHÂN CÔNG đủ người + hạn", () => {
+  const t = L.plainText({ title: "T" }, MIX);
+  assert.ok(t.includes("KẾT LUẬN CUỘC HỌP"));
+  assert.ok(t.includes("1. Thống nhất triển khai quý 4"));
+  assert.ok(t.includes("PHÂN CÔNG NHIỆM VỤ"));
+  assert.ok(t.includes("Lập dự toán") && t.includes("Tổ dự toán") && t.includes("15/10"));
+});
+test("plainText: không có Kết luận/Phân công → không in tiêu đề mục rỗng", () => {
+  const t = L.plainText({ title: "T" }, [{ id: "1", speaker: "A", text: "x" }]);
+  assert.ok(!t.includes("KẾT LUẬN CUỘC HỌP"));
+  assert.ok(!t.includes("PHÂN CÔNG NHIỆM VỤ"));
+});
+
+// ---------- findSegment (nghe lại đúng đoạn) ----------
+const SEGS = [{ id: "a", base: 0, dur: 120 }, { id: "b", base: 300, dur: 60 }];
+test("findSegment: thời điểm nằm trong đoạn ghi thứ nhất", () => {
+  const r = L.findSegment(SEGS, 45);
+  assert.strictEqual(r.seg.id, "a"); assert.strictEqual(r.offset, 45);
+});
+test("findSegment: thời điểm thuộc đoạn ghi sau (sau khi tải lại trang)", () => {
+  const r = L.findSegment(SEGS, 330);
+  assert.strictEqual(r.seg.id, "b"); assert.strictEqual(r.offset, 30);
+});
+test("findSegment: rơi vào khoảng KHÔNG ghi âm → null (không phát bừa đoạn khác)", () => {
+  assert.strictEqual(L.findSegment(SEGS, 200), null);
+});
+test("findSegment: hơi quá cuối đoạn đang ghi (≤5s, chunk chưa kịp tới) → vẫn nhận", () => {
+  const r = L.findSegment(SEGS, 123);
+  assert.strictEqual(r.seg.id, "a"); assert.strictEqual(r.offset, 120);
+});
+test("findSegment: không có ghi âm / thời điểm không hợp lệ → null", () => {
+  assert.strictEqual(L.findSegment([], 10), null);
+  assert.strictEqual(L.findSegment(null, 10), null);
+  assert.strictEqual(L.findSegment(SEGS, null), null);
+});
+test("findSegment: sát trước đoạn (≤3s, chờ cấp micro) → đầu đoạn, không âm", () => {
+  const r = L.findSegment([{ id: "x", base: 10, dur: 50 }], 8);
+  assert.strictEqual(r.seg.id, "x"); assert.strictEqual(r.offset, 0);
+});
+test("findSegment: trước đoạn đầu quá xa → null", () => {
+  assert.strictEqual(L.findSegment([{ id: "x", base: 10, dur: 50 }], 3), null);
+});
+
 // ---------- wordHtml ----------
 test("wordHtml: Times New Roman + tiêu đề + khối ký", () => {
   const meta = { company: "LAVIPCO", title: "Họp A", date: "2026-10-08", time: "08:00",
