@@ -86,7 +86,7 @@
     input,textarea,select,.etext,.spk,.taskrow input{font-size:16px!important}
     .btn,.btn-sm{min-height:44px}
     .del{width:44px;height:44px;font-size:16px}
-    #optPanel summary,#optPanel label:has(#optCap){min-height:44px;display:flex;align-items:center}
+    #optPanel summary,#optPanel label:has(input[type=checkbox]){min-height:44px;display:flex;align-items:center}
   }
   /* Thanh ghi dính đáy: chỉ ở bố cục 1 cột, khi đã bắt đầu ghi → cuộn xuống xem chữ vẫn bấm được */
   #mbar{display:none}
@@ -182,6 +182,8 @@
       <summary style="cursor:pointer;padding:6px 0;font-weight:600;color:var(--muted)">⚙️ Tùy chọn nhận dạng</summary>
       <div style="padding:4px 0 10px">
         <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="optCap" checked style="width:auto">Tự viết hoa đầu câu</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="optPeriod" checked style="width:auto">Tự thêm dấu chấm khi ngắt nghỉ</label>
+        <div class="hint" style="margin:-4px 0 8px">Đọc lệnh để chèn dấu: <b>“dấu phẩy”</b>, <b>“dấu chấm”</b>, <b>“dấu hỏi”</b>, <b>“dấu chấm than”</b>, <b>“dấu hai chấm”</b>, <b>“xuống dòng”</b>.</div>
         <label style="display:block;margin-bottom:4px">Từ điển sửa thuật ngữ (mỗi dòng <b>sai=đúng</b>):</label>
         <textarea id="optDict" rows="4" placeholder="led=LED&#10;thgt=THGT&#10;hps=HPS" style="font-size:12.5px;font-family:monospace"></textarea>
         <div class="hint" style="margin-top:4px">Áp dụng cho câu máy vừa nhận, không đụng phần anh gõ tay.</div>
@@ -238,10 +240,92 @@
   }
 
   function appendText(cur, chunk) {
-    var c = (chunk || "").trim();
-    if (!c) return cur || "";
-    if (!cur) return c;
-    return cur.replace(/\s+$/, "") + " " + c;
+    var c = String(chunk || "").replace(/^[ \t]+|[ \t]+$/g, "");
+    if (!c.trim() && c.indexOf("\n") < 0) return cur || ""; // "xuống dòng" nói riêng vẫn giữ
+    if (!cur) return c.replace(/^[\s.,!?;:…]+/, "");        // đầu đoạn không mở bằng dấu
+    var base = cur.replace(/[ \t]+$/, "");
+    // dấu câu dính chữ trước; dấu đọc lệnh thay dấu cuối cũ (tránh "..", ".,"); sau xuống dòng không cần khoảng trắng
+    if (/^[.,!?;:]/.test(c)) return base.replace(/[.,!?;:]$/, "") + c;
+    if (/^[…\n]/.test(c) || /\n$/.test(base)) return base + c;
+    return base + " " + c;
+  }
+  // Viết hoa phần máy vừa nghe (không đụng chữ đã có / gõ tay): hoa chữ đầu nếu đứng sau . ? ! … xuống dòng / đầu đoạn
+  function capChunk(prev, chunk) {
+    var capNext = !String(prev || "").trim() || /[.!?…\n]\s*$/.test(prev), out = "", s = String(chunk || "");
+    if (String(prev || "").trim() && /^\s*[.,!?;:]/.test(s)) capNext = false; // dấu đầu đoạn thay dấu cuối cũ → xét theo dấu mới
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (capNext && /\p{L}/u.test(ch)) { out += ch.toUpperCase(); capNext = false; } else out += ch;
+      if (/[.!?…\n]/.test(ch)) capNext = true;
+    }
+    return out;
+  }
+
+  // ----- Dấu câu (v2.7): đọc lệnh "dấu chấm/phẩy/…" → dấu; cụm dài khớp trước; phải có chữ "dấu" để không nhầm
+  // "chấm điểm", "hai chấm năm", "ba phẩy năm" -----
+  var PUNCT_CMDS = [
+    [["dấu", "chấm", "hỏi"], "?"], [["dấu", "chấm", "than"], "!"], [["dấu", "chấm", "phẩy"], ";"],
+    [["dấu", "hai", "chấm"], ":"], [["dấu", "chấm"], "."], [["dấu", "phẩy"], ","], [["dấu", "hỏi"], "?"],
+    [["xuống", "dòng"], "\n"]];
+  // "đánh/đóng/con dấu chấm…" là chữ thật, "xuống dòng sông" cũng vậy
+  var NOT_BEFORE_DAU = ["đánh", "đóng", "con", "có", "một", "những", "các"];
+  var NOT_AFTER_XUONG = ["sông", "suối", "nước", "chảy", "kênh", "thác", "biển"];
+  function normWord(w) { w = String(w).toLowerCase(); if (w.normalize) w = w.normalize("NFC"); return w.replace(/[.,!?;:…]/g, ""); }
+  function voicePunct(text) {
+    var toks = String(text || "").split(/\s+/).filter(function (x) { return x; }), out = "";
+    for (var i = 0; i < toks.length;) {
+      var hit = null, w0 = normWord(toks[i]);
+      if (w0 === "dấu" && i > 0 && NOT_BEFORE_DAU.indexOf(normWord(toks[i - 1])) >= 0) w0 = "";
+      if (w0 === "xuống" && i + 2 < toks.length && NOT_AFTER_XUONG.indexOf(normWord(toks[i + 2])) >= 0) w0 = "";
+      for (var c = 0; w0 && c < PUNCT_CMDS.length && !hit; c++) {
+        var ws = PUNCT_CMDS[c][0], ok = i + ws.length <= toks.length;
+        for (var k = 0; ok && k < ws.length; k++) if (normWord(toks[i + k]) !== ws[k]) ok = false;
+        if (ok) hit = PUNCT_CMDS[c];
+      }
+      if (hit) { out = out.replace(/[ \t]+$/, "") + hit[1]; i += hit[0].length; continue; }
+      if (out && !/\n$/.test(out)) out += " ";
+      out += toks[i++];
+    }
+    return out;
+  }
+  function autoPeriod(text) {
+    var s = String(text || "").replace(/[ \t]+$/, "");
+    if (!s.trim()) return s.indexOf("\n") >= 0 ? "\n" : "";
+    return /[.,!?;:…\n]$/.test(s) ? s : s + ".";
+  }
+  // Chỉnh bản XUẤT (Word/.txt/Sao chép): khoảng trắng quanh dấu + viết hoa đầu câu.
+  // Không đụng: số (3,5 / 1.000 / 8:30), URL/email/tên file/tên miền, v.v., TP.HCM; không hoa sau viết tắt (TP. / A.)
+  // và dấu ba chấm; không đổi chữ cố ý viết thường (iPhone, eVN, "a) mục").
+  var PROTECT = /@|:\/\/|^www\.|^\.|^v\.v|^tp\.|\.(vn|com|net|org|gov|edu|io|info|biz|docx?|xlsx?|pptx?|pdf|txt|html?|jpe?g|png|zip)(\b|$)/i;
+  function tidyText(text) {
+    var s = String(text || "").replace(/[ \t]+/g, " ").replace(/ +([,;])/g, "$1").replace(/ +([.!?:…]+)(?=\s|$)/g, "$1");
+    s = s.split(/(\s+)/).map(function (tok) {
+      if (PROTECT.test(tok)) return tok;
+      return tok.replace(/([.,!?;:])(?=\p{L})/gu, function (m, p, off) {
+        return /\p{Lu}/u.test(tok.charAt(off - 1)) && /\p{Lu}/u.test(tok.charAt(off + 1)) ? p : p + " ";
+      });
+    }).join("");
+    function capAt(j) {
+      var ch = s.charAt(j), nx = s.charAt(j + 1);
+      if (j < 0 || !/\p{Ll}/u.test(ch) || /\p{Lu}/u.test(nx) || /[).]/.test(nx)) return;
+      s = s.slice(0, j) + ch.toUpperCase() + s.slice(j + 1);
+    }
+    function firstLetter(from) {
+      for (var j = from; j < s.length; j++) { var c = s.charAt(j); if (c === "\n") return -1; if (/\p{L}/u.test(c)) return j; }
+      return -1;
+    }
+    capAt(firstLetter(0));
+    for (var k = s.indexOf("\n"); k >= 0; k = s.indexOf("\n", k + 1)) capAt(firstLetter(k + 1));
+    var re = /([.!?])( +)(?=\S)/g, m;
+    while ((m = re.exec(s))) {
+      if (m[1] === ".") {
+        if (s.charAt(m.index - 1) === ".") continue;                      // dấu ba chấm
+        var w = s.slice(0, m.index).match(/(\p{L}+)$/u);
+        if (w && (w[1].length === 1 || w[1] === w[1].toUpperCase())) continue; // viết tắt: A. / TP.
+      }
+      capAt(m.index + 1 + m[2].length);
+    }
+    return s.replace(/^\s+|\s+$/g, "");
   }
 
   // results: mảng {isFinal, transcript}; idx = resultIndex của sự kiện
@@ -531,7 +615,7 @@
       var ch = s[i];
       if (capNext && /\S/.test(ch)) { out += ch.toUpperCase(); capNext = false; }
       else out += ch;
-      if (/[.!?…]/.test(ch)) capNext = true;
+      if (/[.!?…\n]/.test(ch)) capNext = true;
     }
     return out;
   }
@@ -575,7 +659,8 @@
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
     extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker,
     checkFix: checkFix, provinceName: provinceName, wardName: wardName, parsePhoton: parsePhoton,
-    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace, bodyLines: bodyLines, fileStem: fileStem,
+    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace,
+    voicePunct: voicePunct, autoPeriod: autoPeriod, tidyText: tidyText, capChunk: capChunk, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
     cmpVersion: cmpVersion, sections: sections };
@@ -873,7 +958,7 @@
   var entries=[], activeId=null, recording=false, wantRecord=false;
   var elapsed=0, timerBase=0, startTs=0, timerInt=null, rec=null;
   var retryN=0, restartTimer=null, saveWarned=false, lastError=null;
-  var undoStack=[], dict=[], autoCap=true, saveTimer=null;
+  var undoStack=[], dict=[], autoCap=true, autoPer=true, saveTimer=null;
   var stopping=false; // đang dừng: vẫn nhận nốt câu cuối Chrome trả về
   var $=function(id){return document.getElementById(id);};
   var ent=$("entries"), liveTxt=$("liveTxt"), liveBar=$("liveBar");
@@ -881,11 +966,12 @@
   (function(){var d=new Date();$("mDate").value=d.toISOString().slice(0,10);$("mTime").value=d.toTimeString().slice(0,5);})();
 
   function collectMeta(){var ids=["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"],o={};ids.forEach(function(i){o[i]=$(i).value;});return o;}
+  function exportEntries(){return entries.map(function(e){var c={};for(var k in e)c[k]=e[k];c.text=L.tidyText(e.text);return c;});}
   function meta(){var m=collectMeta();return{company:m.mCompany||"",title:m.mTitle||"",date:m.mDate||"",time:m.mTime||"",place:m.mPlace||"",chair:m.mChair||"",sec:m.mSec||"",att:m.mAtt||""};}
 
-  function saveNow(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed,dict:$("optDict").value,autoCap:autoCap}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
+  function saveNow(){try{localStorage.setItem("bien_ban_hop_v1",JSON.stringify({entries:entries,meta:collectMeta(),elapsed:elapsed,dict:$("optDict").value,autoCap:autoCap,autoPer:autoPer}));}catch(e){if(!saveWarned){saveWarned=true;banner('<b>Không lưu tự động được</b> (bộ nhớ trình duyệt đầy hoặc đang ở chế độ riêng tư). Hãy bấm <b>Tải biên bản (Word)</b> ngay để giữ nội dung.');}}}
   function save(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,400);} // gộp ghi, đỡ hao khi họp dài
-  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries){entries=d.entries;entries.forEach(function(e){if(!e.id)e.id=uid();if(typeof e.text!=="string")e.text="";if(typeof e.speaker!=="string")e.speaker="";});}if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}if(typeof d.dict==="string")$("optDict").value=d.dict;if(typeof d.autoCap==="boolean"){autoCap=d.autoCap;$("optCap").checked=autoCap;}dict=L.parseDict($("optDict").value);}catch(e){}}
+  function load(){try{var raw=localStorage.getItem("bien_ban_hop_v1");if(!raw)return;var d=JSON.parse(raw);if(d.entries){entries=d.entries;entries.forEach(function(e){if(!e.id)e.id=uid();if(typeof e.text!=="string")e.text="";if(typeof e.speaker!=="string")e.speaker="";});}if(typeof d.elapsed==="number")elapsed=d.elapsed;if(d.meta)for(var k in d.meta){var el=$(k);if(el&&d.meta[k]!==undefined)el.value=d.meta[k];}if(typeof d.dict==="string")$("optDict").value=d.dict;if(typeof d.autoCap==="boolean"){autoCap=d.autoCap;$("optCap").checked=autoCap;}if(typeof d.autoPer==="boolean"){autoPer=d.autoPer;$("optPeriod").checked=autoPer;}dict=L.parseDict($("optDict").value);}catch(e){}}
   var DEFAULT_DICT="led=LED\nthgt=THGT\nhps=HPS\niot=IoT\nlavipco=LAVIPCO\nkwh=kWh\nkw=kW";
   ["mCompany","mTitle","mDate","mTime","mPlace","mChair","mSec","mAtt"].forEach(function(i){$(i).addEventListener("input",save);});
 
@@ -1001,17 +1087,20 @@
   var pendingChunk="";
   function flushPending(e,ta){
     if(!pendingChunk)return;
-    var chunk=dict.length?L.applyDict(pendingChunk,dict):pendingChunk;pendingChunk="";
+    var chunk=pendingChunk;pendingChunk="";
+    if(autoCap)chunk=L.capChunk(e.text,chunk); // chỉ viết hoa phần máy vừa nghe, không đụng chữ gõ tay
     e.text=L.appendText(e.text,chunk);
-    if(autoCap)e.text=L.autoCapitalize(e.text);
     if(ta){ta.value=e.text;autoGrow(ta);}
   }
+  // mỗi đoạn máy nghe được: từ điển → lệnh "dấu phẩy"… thành dấu → ngắt nghỉ thì thêm dấu chấm
+  function speechChunk(c){c=dict.length?L.applyDict(c,dict):c;c=L.voicePunct(c);return autoPer?L.autoPeriod(c):c;}
+  function queueChunk(c){c=speechChunk(c);pendingChunk=pendingChunk?L.appendText(pendingChunk,c):c;}
   function updateActiveText(finalChunk){
     var e=getActive();
     var n=nodeOf(e.id), ta=n?n.querySelector("[data-txt]"):null;
     // Đang gõ tay đúng đoạn này → đệm lại, nối sau khi rời ô (không đụng phần gõ tay)
-    if(ta&&document.activeElement===ta){pendingChunk+=(pendingChunk?" ":"")+finalChunk;save();return;}
-    pendingChunk+=(pendingChunk?" ":"")+finalChunk;
+    if(ta&&document.activeElement===ta){queueChunk(finalChunk);save();return;}
+    queueChunk(finalChunk);
     flushPending(e,ta);
     if(!ta){render();}
     else if(recording&&n){applySearch();if(nearBottom(n))n.scrollIntoView({block:"nearest"});}
@@ -1174,10 +1263,11 @@
   $("btnUndo").addEventListener("click",doUndo);
   $("search").addEventListener("input",applySearch);
   $("optCap").addEventListener("change",function(){autoCap=$("optCap").checked;save();});
+  $("optPeriod").addEventListener("change",function(){autoPer=$("optPeriod").checked;save();});
   $("optDict").addEventListener("input",function(){dict=L.parseDict($("optDict").value);save();});
-  $("btnWord").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}try{var bytes=window.BBDocx.buildDocx(meta(),entries);dlBytes(L.fileStem(meta())+".docx",bytes,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");toast("Đã tải file Word (.docx).");}catch(e){download(L.fileStem(meta())+".doc",L.wordHtml(meta(),entries),"application/msword");toast("Đã tải file Word (.doc).");}});
-  $("btnTxt").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".txt",L.plainText(meta(),entries),"text/plain;charset=utf-8");toast("Đã tải file .txt.");});
-  $("btnCopy").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để sao chép.");return;}var txt=L.plainText(meta(),entries);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép biên bản.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
+  $("btnWord").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}try{var bytes=window.BBDocx.buildDocx(meta(),exportEntries());dlBytes(L.fileStem(meta())+".docx",bytes,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");toast("Đã tải file Word (.docx).");}catch(e){download(L.fileStem(meta())+".doc",L.wordHtml(meta(),exportEntries()),"application/msword");toast("Đã tải file Word (.doc).");}});
+  $("btnTxt").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để xuất.");return;}download(L.fileStem(meta())+".txt",L.plainText(meta(),exportEntries()),"text/plain;charset=utf-8");toast("Đã tải file .txt.");});
+  $("btnCopy").addEventListener("click",function(){if(!L.bodyLines(entries).length){toast("Chưa có nội dung để sao chép.");return;}var txt=L.plainText(meta(),exportEntries());if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toast("Đã sao chép biên bản.");},function(){fallbackCopy(txt);});else fallbackCopy(txt);});
   function fallbackCopy(txt){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length); /* iOS bỏ qua select() */try{document.execCommand("copy");toast("Đã sao chép.");}catch(e){toast("Không sao chép được.");}document.body.removeChild(ta);}
 
   window.addEventListener("beforeunload",function(e){saveNow();if(recording||entries.length){e.preventDefault();e.returnValue="";}});
@@ -1186,7 +1276,7 @@
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
   // ===== Tự kiểm tra phiên bản mới =====
-  var APP_VERSION="2.6";
+  var APP_VERSION="2.7";
   var VERSION_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/version.json";
   var PAGES_URL="https://neo-era.github.io/bien-ban-hop/";
   var RAW_HTML_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/index.html";

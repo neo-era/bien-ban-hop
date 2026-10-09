@@ -78,6 +78,9 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.7: Dấu câu — đọc lệnh "dấu phẩy/chấm/hỏi/chấm hỏi/chấm than/hai chấm/chấm phẩy", "xuống dòng"; tự thêm dấu
+  chấm khi ngắt nghỉ (công tắc trong Tùy chọn nhận dạng); xuất Word/.txt/Sao chép tự viết hoa đầu câu + sửa khoảng
+  trắng quanh dấu (không đụng số, URL, viết tắt). Chi tiết: mục 12 "Thiết kế E".
 - v2.6: iPhone "câu đầu ghi được, sau đó rất khó nhận dạng": iOS không mở thêm luồng micro (getUserMedia) nữa;
   chữ tạm Siri không chốt → tự ghi khi đứng yên 1,5 s; mọi máy: chữ tạm còn lại khi phiên kết thúc / Tạm dừng /
   Kết thúc được ghi (trước đây mất). Nhật ký chẩn đoán: giữ nhãn phiên bản ~1 s. Chi tiết: mục 12 "Thiết kế D".
@@ -206,6 +209,26 @@ I4 nhật ký chẩn đoán (giữ nhãn phiên bản) để anh gửi về · I
 - Tự ghi khi đứng yên: 2,5 s, chỉ khi ≥3 từ, chỉ hẹn lại khi chữ tạm ĐỔI (Siri gửi lặp lúc im lặng). Siri sửa chữ
   sau khi đã tự ghi ("năm giờ" → "5 giờ") → có thể lặp một đoạn (đã chấp nhận: thà lặp).
 - Nhật ký: giữ nhãn ~1 s hoặc chạm nhanh 5 lần (iOS giữ lâu dễ thành bôi đen chữ). Nhật ký chứa nội dung lời nói.
+
+### Thiết kế E — Dấu chấm, phẩy (v2.7)
+Chrome/Siri trả tiếng Việt không có dấu câu. Anh chọn: đọc lệnh + tự thêm dấu chấm khi ngắt nghỉ.
+Tiêu chí (đã duyệt): P1 lệnh "dấu chấm/phẩy/hỏi/chấm hỏi/chấm than/hai chấm/chấm phẩy", "xuống dòng" → dấu, dính
+chữ trước · P2 không nhầm "chấm điểm", "chấm công", "hai chấm năm", "phẩy" đứng riêng (lệnh phải có chữ "dấu") ·
+P3 tự thêm "." cuối mỗi đoạn máy nghe được nếu chưa có dấu; công tắc trong Tùy chọn, mặc định bật · P4 viết hoa sau
+. ? ! và đầu dòng · P5 không đụng phần gõ tay · P6 test cũ pass · P7 khi xuất Word/.txt/Sao chép: viết hoa đầu câu,
+bỏ khoảng trắng trước dấu, thêm khoảng trắng sau dấu nếu thiếu — không đụng số (3,5 / 1.000) và viết tắt (TP.HCM);
+chỉ chỉnh bản xuất, không đổi nội dung trong app.
+- Hàm thuần (logic.js): `voicePunct(text)` (lệnh → dấu, theo từ, cụm dài khớp trước), `autoPeriod(text)`,
+  `tidyText(text)` (P7). `appendText` không chèn khoảng trắng trước dấu / sau xuống dòng; `autoCapitalize` viết hoa
+  cả sau xuống dòng.
+- Xuất: index.html đưa `entries` đã `tidyText` cho cả 3 đường xuất → không phải sửa docx.js.
+- Xử lý TỪNG đoạn máy nghe ngay khi đến (`queueChunk`), kể cả lúc anh đang gõ tay → đoạn nào cũng có dấu chấm.
+  Viết hoa chỉ phần máy vừa nghe (`capChunk`), không chạy lại trên cả ô → không đụng chữ gõ tay (P5).
+- Review độc lập (đã sửa, có test): "xuống dòng" nói riêng bị mất; "đánh/đóng/con/có dấu chấm…", "xuống dòng sông"
+  bị biến thành dấu; lặp dấu ".." / ".," khi đoạn sau mở bằng lệnh (dấu đọc lệnh thay dấu cuối cũ); xuất Word phá
+  URL/email/tên file/v.v. và viết hoa sau "TP." "A." "..."; đổi "iPhone" → "IPhone", "a) mục" → "A) mục".
+  Tự kiểm thêm: "tiến độ, Nhất là" (viết hoa sau phẩy thay chấm) → sửa.
+- Hạn chế: iPhone tự ghi khi đứng yên có thể tách "dấu | chấm" nếu người nói ngừng giữa lệnh >2,5 s → ra chữ thường.
 
 ## 13. Quy trình phát hành bản mới (để app tự báo cập nhật)
 1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).

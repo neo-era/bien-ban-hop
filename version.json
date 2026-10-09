@@ -1,4 +1,4 @@
 {
-  "version": "2.6",
-  "notes": "iPhone: sửa lỗi chỉ ghi được câu đầu; không bỏ sót chữ chưa chốt khi máy tự ngắt / tạm dừng; thêm nhật ký chẩn đoán"
+  "version": "2.7",
+  "notes": "Dấu chấm, phẩy: đọc \"dấu phẩy\", \"dấu chấm\", \"dấu hỏi\", \"xuống dòng\"… + tự thêm dấu chấm khi ngắt nghỉ; xuất Word tự viết hoa đầu câu"
 }

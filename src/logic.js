@@ -26,10 +26,92 @@
   }
 
   function appendText(cur, chunk) {
-    var c = (chunk || "").trim();
-    if (!c) return cur || "";
-    if (!cur) return c;
-    return cur.replace(/\s+$/, "") + " " + c;
+    var c = String(chunk || "").replace(/^[ \t]+|[ \t]+$/g, "");
+    if (!c.trim() && c.indexOf("\n") < 0) return cur || ""; // "xuống dòng" nói riêng vẫn giữ
+    if (!cur) return c.replace(/^[\s.,!?;:…]+/, "");        // đầu đoạn không mở bằng dấu
+    var base = cur.replace(/[ \t]+$/, "");
+    // dấu câu dính chữ trước; dấu đọc lệnh thay dấu cuối cũ (tránh "..", ".,"); sau xuống dòng không cần khoảng trắng
+    if (/^[.,!?;:]/.test(c)) return base.replace(/[.,!?;:]$/, "") + c;
+    if (/^[…\n]/.test(c) || /\n$/.test(base)) return base + c;
+    return base + " " + c;
+  }
+  // Viết hoa phần máy vừa nghe (không đụng chữ đã có / gõ tay): hoa chữ đầu nếu đứng sau . ? ! … xuống dòng / đầu đoạn
+  function capChunk(prev, chunk) {
+    var capNext = !String(prev || "").trim() || /[.!?…\n]\s*$/.test(prev), out = "", s = String(chunk || "");
+    if (String(prev || "").trim() && /^\s*[.,!?;:]/.test(s)) capNext = false; // dấu đầu đoạn thay dấu cuối cũ → xét theo dấu mới
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (capNext && /\p{L}/u.test(ch)) { out += ch.toUpperCase(); capNext = false; } else out += ch;
+      if (/[.!?…\n]/.test(ch)) capNext = true;
+    }
+    return out;
+  }
+
+  // ----- Dấu câu (v2.7): đọc lệnh "dấu chấm/phẩy/…" → dấu; cụm dài khớp trước; phải có chữ "dấu" để không nhầm
+  // "chấm điểm", "hai chấm năm", "ba phẩy năm" -----
+  var PUNCT_CMDS = [
+    [["dấu", "chấm", "hỏi"], "?"], [["dấu", "chấm", "than"], "!"], [["dấu", "chấm", "phẩy"], ";"],
+    [["dấu", "hai", "chấm"], ":"], [["dấu", "chấm"], "."], [["dấu", "phẩy"], ","], [["dấu", "hỏi"], "?"],
+    [["xuống", "dòng"], "\n"]];
+  // "đánh/đóng/con dấu chấm…" là chữ thật, "xuống dòng sông" cũng vậy
+  var NOT_BEFORE_DAU = ["đánh", "đóng", "con", "có", "một", "những", "các"];
+  var NOT_AFTER_XUONG = ["sông", "suối", "nước", "chảy", "kênh", "thác", "biển"];
+  function normWord(w) { w = String(w).toLowerCase(); if (w.normalize) w = w.normalize("NFC"); return w.replace(/[.,!?;:…]/g, ""); }
+  function voicePunct(text) {
+    var toks = String(text || "").split(/\s+/).filter(function (x) { return x; }), out = "";
+    for (var i = 0; i < toks.length;) {
+      var hit = null, w0 = normWord(toks[i]);
+      if (w0 === "dấu" && i > 0 && NOT_BEFORE_DAU.indexOf(normWord(toks[i - 1])) >= 0) w0 = "";
+      if (w0 === "xuống" && i + 2 < toks.length && NOT_AFTER_XUONG.indexOf(normWord(toks[i + 2])) >= 0) w0 = "";
+      for (var c = 0; w0 && c < PUNCT_CMDS.length && !hit; c++) {
+        var ws = PUNCT_CMDS[c][0], ok = i + ws.length <= toks.length;
+        for (var k = 0; ok && k < ws.length; k++) if (normWord(toks[i + k]) !== ws[k]) ok = false;
+        if (ok) hit = PUNCT_CMDS[c];
+      }
+      if (hit) { out = out.replace(/[ \t]+$/, "") + hit[1]; i += hit[0].length; continue; }
+      if (out && !/\n$/.test(out)) out += " ";
+      out += toks[i++];
+    }
+    return out;
+  }
+  function autoPeriod(text) {
+    var s = String(text || "").replace(/[ \t]+$/, "");
+    if (!s.trim()) return s.indexOf("\n") >= 0 ? "\n" : "";
+    return /[.,!?;:…\n]$/.test(s) ? s : s + ".";
+  }
+  // Chỉnh bản XUẤT (Word/.txt/Sao chép): khoảng trắng quanh dấu + viết hoa đầu câu.
+  // Không đụng: số (3,5 / 1.000 / 8:30), URL/email/tên file/tên miền, v.v., TP.HCM; không hoa sau viết tắt (TP. / A.)
+  // và dấu ba chấm; không đổi chữ cố ý viết thường (iPhone, eVN, "a) mục").
+  var PROTECT = /@|:\/\/|^www\.|^\.|^v\.v|^tp\.|\.(vn|com|net|org|gov|edu|io|info|biz|docx?|xlsx?|pptx?|pdf|txt|html?|jpe?g|png|zip)(\b|$)/i;
+  function tidyText(text) {
+    var s = String(text || "").replace(/[ \t]+/g, " ").replace(/ +([,;])/g, "$1").replace(/ +([.!?:…]+)(?=\s|$)/g, "$1");
+    s = s.split(/(\s+)/).map(function (tok) {
+      if (PROTECT.test(tok)) return tok;
+      return tok.replace(/([.,!?;:])(?=\p{L})/gu, function (m, p, off) {
+        return /\p{Lu}/u.test(tok.charAt(off - 1)) && /\p{Lu}/u.test(tok.charAt(off + 1)) ? p : p + " ";
+      });
+    }).join("");
+    function capAt(j) {
+      var ch = s.charAt(j), nx = s.charAt(j + 1);
+      if (j < 0 || !/\p{Ll}/u.test(ch) || /\p{Lu}/u.test(nx) || /[).]/.test(nx)) return;
+      s = s.slice(0, j) + ch.toUpperCase() + s.slice(j + 1);
+    }
+    function firstLetter(from) {
+      for (var j = from; j < s.length; j++) { var c = s.charAt(j); if (c === "\n") return -1; if (/\p{L}/u.test(c)) return j; }
+      return -1;
+    }
+    capAt(firstLetter(0));
+    for (var k = s.indexOf("\n"); k >= 0; k = s.indexOf("\n", k + 1)) capAt(firstLetter(k + 1));
+    var re = /([.!?])( +)(?=\S)/g, m;
+    while ((m = re.exec(s))) {
+      if (m[1] === ".") {
+        if (s.charAt(m.index - 1) === ".") continue;                      // dấu ba chấm
+        var w = s.slice(0, m.index).match(/(\p{L}+)$/u);
+        if (w && (w[1].length === 1 || w[1] === w[1].toUpperCase())) continue; // viết tắt: A. / TP.
+      }
+      capAt(m.index + 1 + m[2].length);
+    }
+    return s.replace(/^\s+|\s+$/g, "");
   }
 
   // results: mảng {isFinal, transcript}; idx = resultIndex của sự kiện
@@ -319,7 +401,7 @@
       var ch = s[i];
       if (capNext && /\S/.test(ch)) { out += ch.toUpperCase(); capNext = false; }
       else out += ch;
-      if (/[.!?…]/.test(ch)) capNext = true;
+      if (/[.!?…\n]/.test(ch)) capNext = true;
     }
     return out;
   }
@@ -363,7 +445,8 @@
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
     extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker,
     checkFix: checkFix, provinceName: provinceName, wardName: wardName, parsePhoton: parsePhoton,
-    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace, bodyLines: bodyLines, fileStem: fileStem,
+    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace,
+    voicePunct: voicePunct, autoPeriod: autoPeriod, tidyText: tidyText, capChunk: capChunk, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
     cmpVersion: cmpVersion, sections: sections };

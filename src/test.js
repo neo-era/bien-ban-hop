@@ -558,3 +558,91 @@ test("đang ghi (không phải Tạm dừng): câu mới nằm trong phần vừ
   tr.feed(R(["đồng ý với phương án", false]), 0); tr.flush();
   assert.strictEqual(tr.feed(R(["phương án", true]), 0).finalText, "phương án");
 });
+
+// ---------- v2.7: dấu chấm, phẩy ----------
+test("voicePunct: đọc lệnh → dấu, dính vào chữ trước (P1)", () => {
+  assert.strictEqual(L.voicePunct("hôm nay họp dấu phẩy tiến độ chậm dấu chấm"), "hôm nay họp, tiến độ chậm.");
+  assert.strictEqual(L.voicePunct("anh thấy sao dấu chấm hỏi"), "anh thấy sao?");
+  assert.strictEqual(L.voicePunct("anh thấy sao dấu hỏi"), "anh thấy sao?");
+  assert.strictEqual(L.voicePunct("tuyệt vời dấu chấm than"), "tuyệt vời!");
+  assert.strictEqual(L.voicePunct("gồm dấu hai chấm A và B"), "gồm: A và B");
+  assert.strictEqual(L.voicePunct("thứ nhất dấu chấm phẩy thứ hai"), "thứ nhất; thứ hai");
+  assert.strictEqual(L.voicePunct("mục một xuống dòng mục hai"), "mục một\nmục hai");
+  assert.strictEqual(L.voicePunct("Dấu Phẩy"), ",");
+});
+test("voicePunct: không nhầm chữ thường (P2)", () => {
+  assert.strictEqual(L.voicePunct("chấm điểm và chấm công"), "chấm điểm và chấm công");
+  assert.strictEqual(L.voicePunct("tỉ lệ hai chấm năm"), "tỉ lệ hai chấm năm");
+  assert.strictEqual(L.voicePunct("ba phẩy năm mét"), "ba phẩy năm mét");
+  assert.strictEqual(L.voicePunct("dấu hiệu tốt"), "dấu hiệu tốt");
+  assert.strictEqual(L.voicePunct(""), "");
+});
+test("autoPeriod: thêm '.' nếu đoạn chưa kết thúc bằng dấu (P3)", () => {
+  assert.strictEqual(L.autoPeriod("tiến độ chậm"), "tiến độ chậm.");
+  assert.strictEqual(L.autoPeriod("tiến độ chậm  "), "tiến độ chậm.");
+  for (const s of ["a.", "a,", "a?", "a!", "a:", "a;", "a…", "a\n"]) assert.strictEqual(L.autoPeriod(s), s);
+  assert.strictEqual(L.autoPeriod(""), "");
+});
+test("appendText: không chèn khoảng trắng trước dấu / sau xuống dòng", () => {
+  assert.strictEqual(L.appendText("hôm nay họp", ", tiến độ"), "hôm nay họp, tiến độ");
+  assert.strictEqual(L.appendText("hôm nay họp", "."), "hôm nay họp.");
+  assert.strictEqual(L.appendText("mục một\n", "mục hai"), "mục một\nmục hai");
+  assert.strictEqual(L.appendText("mục một", "\nmục hai"), "mục một\nmục hai");
+});
+test("autoCapitalize: viết hoa sau xuống dòng (P4)", () => {
+  assert.strictEqual(L.autoCapitalize("mục một\nmục hai. xong"), "Mục một\nMục hai. Xong");
+});
+test("tidyText: viết hoa đầu câu khi xuất, sửa khoảng trắng quanh dấu (P7)", () => {
+  assert.strictEqual(L.tidyText("hôm nay họp. tiến độ chậm? đúng vậy! tiếp"), "Hôm nay họp. Tiến độ chậm? Đúng vậy! Tiếp");
+  assert.strictEqual(L.tidyText("mục một\nmục hai"), "Mục một\nMục hai");
+  assert.strictEqual(L.tidyText("họp ,tiến độ . xong"), "Họp, tiến độ. Xong");
+  assert.strictEqual(L.tidyText("xong.tiếp theo"), "Xong. Tiếp theo");
+  assert.strictEqual(L.tidyText("đạt 3,5 tỷ và 1.000 bộ đèn"), "Đạt 3,5 tỷ và 1.000 bộ đèn");
+  assert.strictEqual(L.tidyText("trụ sở TP.HCM"), "Trụ sở TP.HCM");
+  assert.strictEqual(L.tidyText("  "), "");
+  assert.strictEqual(L.tidyText("... đang chờ"), "... Đang chờ");
+});
+
+// ---- review độc lập v2.7 ----
+test("'xuống dòng' nói riêng một đoạn → không mất (bật hay tắt tự chấm)", () => {
+  assert.strictEqual(L.autoPeriod("\n"), "\n");
+  assert.strictEqual(L.appendText("Abc.", "\n"), "Abc.\n");
+  assert.strictEqual(L.appendText("Abc.\n", "mục hai"), "Abc.\nmục hai");
+});
+test("voicePunct: không ăn chữ 'đánh/đóng/con dấu…', 'xuống dòng sông'", () => {
+  for (const s of ["đánh dấu chấm điểm", "con dấu chấm đỏ", "đóng dấu chấm hết", "đánh dấu hỏi", "có dấu phẩy ở đây",
+    "thuyền xuống dòng sông", "đi xuống dòng suối"]) assert.strictEqual(L.voicePunct(s), s);
+  assert.strictEqual(L.voicePunct("đã đánh dấu xong dấu chấm"), "đã đánh dấu xong.");
+});
+test("appendText: đoạn mới mở đầu bằng dấu → thay dấu cuối cũ, không lặp '..' / '.,'", () => {
+  assert.strictEqual(L.appendText("Abc.", ". Abc"), "Abc. Abc");
+  assert.strictEqual(L.appendText("Abc.", ", xyz"), "Abc, xyz");
+  assert.strictEqual(L.appendText("Abc", "?"), "Abc?");
+});
+test("appendText: đoạn đầu tiên mở đầu bằng dấu → bỏ dấu thừa", () => {
+  assert.strictEqual(L.appendText("", ", abc."), "abc.");
+});
+test("capChunk: chỉ viết hoa phần máy vừa nghe, không đụng phần gõ tay (P5)", () => {
+  assert.strictEqual(L.capChunk("ghi chú:\n- a\nb tay", "thêm ý. hai"), "thêm ý. Hai");
+  assert.strictEqual(L.capChunk("", ", abc"), ", Abc");
+  assert.strictEqual(L.capChunk("Xong.", "tiếp theo"), "Tiếp theo");
+  assert.strictEqual(L.capChunk("Xong.\n", "mục hai"), "Mục hai");
+  assert.strictEqual(L.capChunk("đang nói", "tiếp"), "tiếp");
+});
+test("tidyText: không phá URL, email, tên file, v.v., số", () => {
+  for (const s of ["Xem www.google.com nhé", "Gửi abc@gmail.com nhé", "Link https://a.vn/x nhé", "Web lavipco.vn nhé",
+    "Ở tp.hcm nhé", "Các việc v.v. và", "Mở file .docx nhé", "Giá .5 triệu", "Lúc 8:30 sáng"]) assert.strictEqual(L.tidyText(s), s);
+});
+test("tidyText: không viết hoa sau viết tắt / dấu ba chấm; không đổi chữ cố ý viết thường", () => {
+  assert.strictEqual(L.tidyText("Tại TP. hồ chí minh"), "Tại TP. hồ chí minh");
+  assert.strictEqual(L.tidyText("Ông A. nói"), "Ông A. nói");
+  assert.strictEqual(L.tidyText("Đợi... rồi"), "Đợi... rồi");
+  assert.strictEqual(L.tidyText("iPhone mới"), "iPhone mới");
+  assert.strictEqual(L.tidyText("Mua eVN"), "Mua eVN");
+  assert.strictEqual(L.tidyText("a) mục một\nb) mục hai"), "a) mục một\nb) mục hai");
+  assert.strictEqual(L.tidyText("xong rồi đó. sau đó"), "Xong rồi đó. Sau đó");
+});
+test("capChunk: đoạn mở đầu bằng dấu phẩy thay dấu chấm cũ → không viết hoa chữ sau phẩy", () => {
+  assert.strictEqual(L.capChunk("Họp về tiến độ.", ", nhất là gói ba."), ", nhất là gói ba.");
+  assert.strictEqual(L.capChunk("Họp về tiến độ", "? anh thấy sao"), "? Anh thấy sao");
+});
