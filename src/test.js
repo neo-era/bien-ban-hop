@@ -74,6 +74,86 @@ test("extractSpeech: không có gì mới", () => {
   assert.strictEqual(r.interim, "");
 });
 
+// ---------- createSpeechTracker (chống lặp chữ, v2.4) ----------
+const R = (...xs) => xs.map(([t, f]) => ({ transcript: t, isFinal: !!f }));
+
+test("tracker: máy tính — câu chốt nối tiếp như extractSpeech cũ (A4)", () => {
+  const tr = L.createSpeechTracker({ cumulative: false });
+  assert.deepStrictEqual(tr.feed(R(["hôm nay", false]), 0), { finalText: "", interim: "hôm nay" });
+  assert.strictEqual(tr.feed(R(["hôm nay họp", true]), 0).finalText, "hôm nay họp");
+  const r = tr.feed(R(["hôm nay họp", true], ["tiến độ", true], ["chậm", false]), 1);
+  assert.deepStrictEqual(r, { finalText: "tiến độ", interim: "chậm" });
+});
+test("tracker: gửi lại câu đã chốt ở cùng vị trí → không ghi lần 2 (A1)", () => {
+  const tr = L.createSpeechTracker({ cumulative: false });
+  tr.feed(R(["một", true]), 0);
+  assert.strictEqual(tr.feed(R(["một", true], ["hai", true]), 1).finalText, "hai");
+  assert.strictEqual(tr.feed(R(["một", true], ["hai", true]), 1).finalText, "");
+  assert.strictEqual(tr.feed(R(["một", true], ["hai", true]), 0).finalText, "");
+});
+test("tracker: trùng vị trí nhưng khác nội dung → vẫn ghi (Chrome đặt mọi câu ở vị trí 0)", () => {
+  const tr = L.createSpeechTracker({ cumulative: false });
+  assert.strictEqual(tr.feed(R(["khai mạc cuộc họp", true]), 0).finalText, "khai mạc cuộc họp");
+  assert.strictEqual(tr.feed(R(["báo cáo tiến độ", true]), 0).finalText, "báo cáo tiến độ");
+});
+test("tracker: trùng chỉ khác hoa thường/dấu câu/khoảng trắng → vẫn coi là lặp", () => {
+  const tr = L.createSpeechTracker({ cumulative: false });
+  tr.feed(R(["Đồng ý.", true]), 0);
+  assert.strictEqual(tr.feed(R(["  đồng   ý ", true]), 0).finalText, "");
+});
+test("tracker Android: gửi dồn → chỉ thêm phần mới, giữ chữ gốc (A2)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  assert.strictEqual(tr.feed(R(["Hôm nay họp", true]), 0).finalText, "Hôm nay họp");
+  assert.strictEqual(tr.feed(R(["Hôm nay họp", true], ["hôm nay họp về Sapulico", true]), 1).finalText, "về Sapulico");
+  assert.strictEqual(tr.feed(R(["Hôm nay họp", true], ["hôm nay họp về Sapulico", true],
+    ["hôm nay họp về Sapulico, tiến độ chậm", true]), 2).finalText, "tiến độ chậm");
+});
+// Review độc lập v2.4: thà lặp còn hơn MẤT CHỮ → chỉ cắt khi có bằng chứng gửi dồn
+// (câu trước nằm ngay trước, trong cùng danh sách kết quả) và khớp TRỌN câu trước.
+test("tracker Android: câu mới chỉ trùng phần đầu câu trước → không mất chữ", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["giao cho anh Tuấn", true]), 0);
+  assert.strictEqual(tr.feed(R(["giao cho anh Hùng làm báo cáo", true]), 0).finalText, "giao cho anh Hùng làm báo cáo");
+  const t2 = L.createSpeechTracker({ cumulative: true });
+  t2.feed(R(["giao cho anh Tuấn", true]), 0);
+  assert.strictEqual(t2.feed(R(["giao cho anh Tuấn", true], ["giao cho anh Hùng làm báo cáo", true]), 1).finalText, "giao cho anh Hùng làm báo cáo");
+});
+test("tracker Android: mỗi câu ở vị trí 0, câu mới mở đầu bằng câu trước → giữ nguyên", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["vâng", true]), 0);
+  assert.strictEqual(tr.feed(R(["vâng em hiểu rồi", true]), 0).finalText, "vâng em hiểu rồi");
+  tr.feed(R(["anh Hùng", true]), 0);
+  assert.strictEqual(tr.feed(R(["anh Hùng phụ trách quận 8", true]), 0).finalText, "anh Hùng phụ trách quận 8");
+});
+test("tracker: không cắt thì giữ nguyên văn câu (dấu câu, ký hiệu) như bản cũ (A4)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  assert.strictEqual(tr.feed(R(["Xin chào - mọi người…", true]), 0).finalText, "Xin chào - mọi người…");
+});
+test("tracker Android: lặp thật ở câu mới → giữ nguyên (A3)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["anh thấy sao", true]), 0);
+  assert.strictEqual(tr.feed(R(["được được", true]), 0).finalText, "được được");
+  assert.strictEqual(tr.feed(R(["được rồi làm luôn", true]), 0).finalText, "được rồi làm luôn");
+});
+test("tracker Android: câu trước ngắn (<3 từ) chỉ khớp một phần → không cắt bừa", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["vâng ạ", true]), 0);
+  assert.strictEqual(tr.feed(R(["vâng em hiểu", true]), 0).finalText, "vâng em hiểu");
+});
+test("tracker: reset() khi phiên mới → câu đầu phiên mới không bị coi là lặp (A5)", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  tr.feed(R(["tiếp tục", true]), 0);
+  tr.reset();
+  assert.strictEqual(tr.feed(R(["tiếp tục", true]), 0).finalText, "tiếp tục");
+});
+test("tracker: ca xấu — rỗng/null/câu chốt rỗng không vỡ", () => {
+  const tr = L.createSpeechTracker({ cumulative: true });
+  assert.deepStrictEqual(tr.feed([], 0), { finalText: "", interim: "" });
+  assert.deepStrictEqual(tr.feed(null, 0), { finalText: "", interim: "" });
+  assert.strictEqual(tr.feed(R(["   ", true], ["...", true]), 0).finalText, "");
+  assert.strictEqual(tr.feed(R(["ok", true]), 0).finalText, "ok");
+});
+
 // ---------- bodyLines ----------
 test("bodyLines: bỏ đoạn rỗng cả text lẫn speaker", () => {
   const e = [

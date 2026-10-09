@@ -42,6 +42,47 @@
     return { finalText: finalText, interim: interim };
   }
 
+  // Chống lặp chữ: Chrome (nhất là Android) có thể gửi lại câu đã chốt, hoặc gửi dồn
+  // "câu cũ + phần mới". Mỗi phiên nhận diện dùng 1 tracker; reset() khi phiên mới.
+  function wordsOf(text) {
+    return String(text || "").split(/\s+/).map(function (o) {
+      return { o: o, n: o.toLowerCase().replace(/[.,!?;:…"'“”()\[\]\-–—]/g, "") };
+    }).filter(function (w) { return w.n; });
+  }
+  function createSpeechTracker(opts) {
+    var cumulative = !!(opts && opts.cumulative);
+    var byIndex = {}, last = [];
+    function key(ws) { return ws.map(function (w) { return w.n; }).join(" "); }
+    // Thà lặp còn hơn mất chữ: chỉ cắt khi có bằng chứng gửi dồn — câu chốt trước nằm ngay
+    // trước trong cùng danh sách kết quả, và câu mới mở đầu bằng TRỌN câu đó.
+    // Trả null = không cắt (giữ nguyên văn).
+    function newPart(ws, prev) {
+      if (!cumulative || !last.length || !prev || !prev.isFinal) return null;
+      if (key(wordsOf(prev.transcript)) !== key(last)) return null;
+      for (var k = 0; k < last.length; k++) if (!ws[k] || ws[k].n !== last[k].n) return null;
+      return ws.slice(last.length);
+    }
+    return {
+      reset: function () { byIndex = {}; last = []; },
+      feed: function (results, idx) {
+        var fin = [], interim = "";
+        results = results || [];
+        for (var i = idx || 0; i < results.length; i++) {
+          var r = results[i];
+          if (!r.isFinal) { interim += r.transcript || ""; continue; }
+          var ws = wordsOf(r.transcript);
+          if (!ws.length || byIndex[i] === key(ws)) continue;
+          byIndex[i] = key(ws);
+          var part = newPart(ws, results[i - 1]);
+          last = ws;
+          if (!part) fin.push(String(r.transcript).trim());
+          else if (part.length) fin.push(part.map(function (w) { return w.o; }).join(" "));
+        }
+        return { finalText: fin.join(" "), interim: interim };
+      }
+    };
+  }
+
   function bodyLines(entries) {
     return (entries || []).filter(function (e) {
       return (e.text || "").trim() || (e.speaker || "").trim() || (e.who || "").trim();
@@ -220,7 +261,7 @@
   }
 
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
-    extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
+    extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
     cmpVersion: cmpVersion, sections: sections };

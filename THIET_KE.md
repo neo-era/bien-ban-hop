@@ -78,6 +78,11 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.4: (1) Chống lặp chữ — `createSpeechTracker` (logic.js, có test): bỏ câu Chrome gửi lại (trùng vị trí + nội dung);
+  Android gửi dồn → chỉ lấy phần mới, nhưng chỉ khi có bằng chứng (thà lặp còn hơn mất chữ — xem mục 12).
+  (2) Điện thoại ≤768px: chữ ô nhập 16px (iPhone khỏi tự phóng to), nút/✕ ≥44px. (3) Thanh ghi dính đáy ≤860px
+  khi đã bắt đầu ghi: Tạm dừng/Ghi tiếp, Người nói, Kết luận, Phân công. (4) Xoay máy/đổi khổ → tính lại chiều cao
+  ô chữ (trước đây bị cắt chữ). Review độc lập bắt 2 ca MẤT CHỮ + 1 ca lặp khi Ghi tiếp nhanh → đã sửa, có test.
 - v2.3: BỎ ghi âm theo yêu cầu — chỉ nói → ra chữ trực tiếp (Web Speech, Chrome). Gỡ MediaRecorder/IndexedDB,
   nút ▶, thanh nghe lại, tùy chọn ghi âm, findSegment. Tự xóa database "bien_ban_audio" do v2.2 để lại.
   Giữ: Kết luận/Phân công, khối ký không xé trang, đồng hồ chốt giây + tự lưu ~5s, giữ câu cuối khi dừng,
@@ -119,7 +124,40 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
   nên app xin lại quyền ở lần chạm đầu tiên nếu lúc mở bị chặn.
 
 
-## 12. Quy trình phát hành bản mới (để app tự báo cập nhật)
+## 12. v2.4 — Chống lặp chữ (Android) + giao diện điện thoại
+
+### Tiêu chí (đã duyệt)
+- A1 Chrome gửi lại câu đã chốt ở cùng vị trí → không ghi lần 2.
+- A2 Chrome gửi dồn (câu mới = câu cũ + phần mới) → chỉ thêm phần mới.
+- A3 Người nói lặp thật ở câu mới ("được, được") → giữ nguyên.
+- A4 Chrome máy tính chạy như cũ; test cũ pass.  A5 Sau tự khởi động lại không sót câu.
+- B1 Ô nhập ≥16px khi ≤768px.  B2 Nút ≥44×44px trên điện thoại.  B3 Không tràn ngang 375/390/768/1280.
+- B4 Máy tính 1280px không đổi.  B5 Không vỡ chức năng.
+- Bố cục: thanh ghi dính đáy màn hình trên điện thoại (Tạm dừng/Ghi tiếp, Người nói mới, Kết luận, Phân công).
+
+### Thiết kế A — `createSpeechTracker({cumulative})` trong logic.js (thuần, test được)
+- `feed(results, resultIndex)` → `{finalText, interim}`; `reset()` khi bắt đầu phiên nhận diện mới.
+- Câu chốt ở vị trí i: chuẩn hóa (thường, bỏ dấu câu, gộp khoảng trắng). **Trùng cả vị trí lẫn nội dung**
+  với câu đã nhận ở vị trí đó → bỏ (A1). KHÔNG bỏ chỉ vì trùng vị trí: có bản Chrome đặt mọi câu mới ở vị trí 0
+  (e2e_live mô phỏng đúng kiểu này) → bỏ theo vị trí sẽ mất câu thật.
+- `cumulative` (bật khi userAgent là Android): chỉ cắt phần đầu khi CÓ BẰNG CHỨNG gửi dồn — câu chốt trước
+  nằm ngay trước (vị trí i−1) trong cùng danh sách kết quả, và câu mới mở đầu bằng TRỌN câu đó (A2).
+  Không cắt thì trả nguyên văn câu (giữ dấu câu như bản cũ). Máy tính tắt cờ này → hành vi như cũ (A4).
+- **Nguyên tắc: thà lặp còn hơn mất chữ.** Bản nháp đầu cho phép khớp n−1 từ ("Chrome sửa từ cuối") và cắt
+  khi mọi câu ở vị trí 0 → review độc lập chứng minh MẤT CHỮ ("giao cho anh Tuấn" → "giao cho anh Hùng làm
+  báo cáo" mất "Hùng"; "vâng" → "vâng em hiểu rồi" mất "vâng") → đã bỏ cả hai.
+- `reset()` chỉ ở `onend` (phiên thật sự kết thúc). Không reset ở `startRec`: bấm Ghi tiếp nhanh trước `onend`
+  rồi Chrome gửi lại câu cuối → bị ghi 2 lần.
+- Đánh đổi đã chấp nhận: nói lại y hệt câu vừa nói, ở cùng vị trí, trong cùng phiên → bị coi là lặp.
+  Kiểu Android mỗi câu ở vị trí 0 mà câu sau chứa trọn câu trước → không cắt được (thà lặp).
+
+### Thiết kế B — CSS `@media(max-width:768px)` + thanh `#mbar`
+- Font ô nhập 16px, `.btn`/`.del` min 44px (chỉ trong media query → máy tính không đổi).
+- `#mbar` cố định đáy, chỉ hiện ở ≤860px (bố cục 1 cột) khi `body.sess` (đã bắt đầu ghi, chưa Kết thúc/Xóa hết).
+  Nút trên thanh gọi lại đúng nút gốc (`click()`) → không nhân đôi logic. Toast + chân trang đẩy lên tránh bị che.
+  Hoàn tác "Xóa hết" (đồng hồ > 0) → hiện lại thanh. Tải lại trang → thanh ẩn tới khi bấm Ghi tiếp (cố ý).
+
+## 13. Quy trình phát hành bản mới (để app tự báo cập nhật)
 1. Sửa `APP_VERSION` trong index.html (nhãn trên header tự theo).
 2. Sửa `version.json` → `"version"` cùng số + `"notes"` mô tả ngắn.
 3. `npm test` + `npm run smoke` + `npm run e2e` → pass hết.

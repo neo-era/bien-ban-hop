@@ -81,6 +81,22 @@
   .banner{margin:14px 20px 0;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5;background:var(--rec-soft);color:#991b1b;border:1px solid #fecaca;display:none}
   .banner.show{display:block}
   footer{text-align:center;padding:18px;color:var(--muted);font-size:11.5px}
+  /* Điện thoại: chữ ô nhập 16px (iPhone khỏi tự phóng to), nút ≥44px dễ bấm. !important vì vài ô có style inline */
+  @media(max-width:768px){
+    input,textarea,select,.etext,.spk,.taskrow input{font-size:16px!important}
+    .btn,.btn-sm{min-height:44px}
+    .del{width:44px;height:44px;font-size:16px}
+    #optPanel summary,#optPanel label:has(#optCap){min-height:44px;display:flex;align-items:center}
+  }
+  /* Thanh ghi dính đáy: chỉ ở bố cục 1 cột, khi đã bắt đầu ghi → cuộn xuống xem chữ vẫn bấm được */
+  #mbar{display:none}
+  @media(max-width:860px){
+    body.sess #mbar{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:6px;position:fixed;left:0;right:0;bottom:0;z-index:30;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(15,23,42,.08)}
+    #mbar .btn{min-height:48px;padding:6px 4px;font-size:12.5px;flex-direction:column;gap:2px;line-height:1.2;text-align:center}
+    #mbar .btn .ic{font-size:14px}
+    body.sess{padding-bottom:72px}
+    body.sess .toast{bottom:84px}
+  }
 </style>
 </head>
 <body>
@@ -179,6 +195,13 @@
 
 <footer>Dữ liệu lưu <b>local</b> trong máy anh (ngay trong trình duyệt), không gửi đi đâu. Phần nhận giọng nói dùng engine của Chrome nên cần internet + micro — mở bằng <b>Google Chrome</b>.</footer>
 
+<div id="mbar">
+  <button class="btn btn-stop" id="mbRec"><span class="ic" id="mbRecIc">❚❚</span><span id="mbRecLbl">Tạm dừng</span></button>
+  <button class="btn btn-ghost" id="mbSpk"><span class="ic">＋</span>Người nói</button>
+  <button class="btn btn-ghost" id="mbKL" style="color:#047857;border-color:#a7f3d0"><span class="ic">＋</span>Kết luận</button>
+  <button class="btn btn-ghost" id="mbPC" style="color:#1d4ed8;border-color:#bfdbfe"><span class="ic">＋</span>Phân công</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ===== LÕI THUẦN (đồng bộ với src/logic.js đã test) ===== -->
@@ -225,6 +248,47 @@
       if (results[i].isFinal) finalText += t; else interim += t;
     }
     return { finalText: finalText, interim: interim };
+  }
+
+  // Chống lặp chữ: Chrome (nhất là Android) có thể gửi lại câu đã chốt, hoặc gửi dồn
+  // "câu cũ + phần mới". Mỗi phiên nhận diện dùng 1 tracker; reset() khi phiên mới.
+  function wordsOf(text) {
+    return String(text || "").split(/\s+/).map(function (o) {
+      return { o: o, n: o.toLowerCase().replace(/[.,!?;:…"'“”()\[\]\-–—]/g, "") };
+    }).filter(function (w) { return w.n; });
+  }
+  function createSpeechTracker(opts) {
+    var cumulative = !!(opts && opts.cumulative);
+    var byIndex = {}, last = [];
+    function key(ws) { return ws.map(function (w) { return w.n; }).join(" "); }
+    // Thà lặp còn hơn mất chữ: chỉ cắt khi có bằng chứng gửi dồn — câu chốt trước nằm ngay
+    // trước trong cùng danh sách kết quả, và câu mới mở đầu bằng TRỌN câu đó.
+    // Trả null = không cắt (giữ nguyên văn).
+    function newPart(ws, prev) {
+      if (!cumulative || !last.length || !prev || !prev.isFinal) return null;
+      if (key(wordsOf(prev.transcript)) !== key(last)) return null;
+      for (var k = 0; k < last.length; k++) if (!ws[k] || ws[k].n !== last[k].n) return null;
+      return ws.slice(last.length);
+    }
+    return {
+      reset: function () { byIndex = {}; last = []; },
+      feed: function (results, idx) {
+        var fin = [], interim = "";
+        results = results || [];
+        for (var i = idx || 0; i < results.length; i++) {
+          var r = results[i];
+          if (!r.isFinal) { interim += r.transcript || ""; continue; }
+          var ws = wordsOf(r.transcript);
+          if (!ws.length || byIndex[i] === key(ws)) continue;
+          byIndex[i] = key(ws);
+          var part = newPart(ws, results[i - 1]);
+          last = ws;
+          if (!part) fin.push(String(r.transcript).trim());
+          else if (part.length) fin.push(part.map(function (w) { return w.o; }).join(" "));
+        }
+        return { finalText: fin.join(" "), interim: interim };
+      }
+    };
   }
 
   function bodyLines(entries) {
@@ -405,7 +469,7 @@
   }
 
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
-    extractSpeech: extractSpeech, bodyLines: bodyLines, fileStem: fileStem,
+    extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,
     cmpVersion: cmpVersion, sections: sections };
@@ -793,6 +857,7 @@
     save();
   }
   function autoGrow(ta){if(!ta)return;ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";}
+  var growTo;window.addEventListener("resize",function(){clearTimeout(growTo);growTo=setTimeout(function(){Array.prototype.forEach.call(ent.querySelectorAll("[data-txt]"),autoGrow);},150);}); // xoay máy / qua mốc 768px đổi cỡ chữ → tính lại chiều cao, khỏi cắt chữ
 
   // tìm kiếm: ẩn đoạn không khớp. Luôn giữ hiện đoạn đang ghi (khỏi "ghi mà không thấy").
   function applySearch(){
@@ -814,6 +879,7 @@
     else if(a.type==="clear"){
       if(recording){undoStack.push(a);refreshUndo();toast("Đang ghi — bấm Tạm dừng trước khi khôi phục cuộc họp cũ.");return;}
       entries=a.entries;elapsed=a.elapsed;timerBase=elapsed;activeId=a.activeId||null;
+      if(elapsed>0)document.body.classList.add("sess");
       renderTimer();rebuildFrom();setIdle();toast("Đã khôi phục nội dung.");}
     refreshUndo();save();
   }
@@ -842,6 +908,7 @@
   function nearBottom(n){var r=n.getBoundingClientRect();return r.top<(window.innerHeight||800)+120;}
 
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var tracker=L.createSpeechTracker({cumulative:/Android/i.test(navigator.userAgent)}); // Android hay gửi lặp / gửi dồn câu
   function tryStart(){
     if(!wantRecord)return;
     try{rec.start();}
@@ -851,10 +918,10 @@
     var r=new SR();r.lang="vi-VN";r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
     r.onresult=function(ev){
       if(!wantRecord&&!stopping)return; // đang dừng: vẫn nhận nốt câu cuối Chrome trả về
-      if(!wantRecord){var fin=[];for(var j=ev.resultIndex;j<ev.results.length;j++)if(ev.results[j].isFinal)fin.push(ev.results[j][0].transcript);if(fin.length){updateActiveText(fin.join(" "));saveNow();}return;}
-      retryN=0;if(lastError){lastError=null;banner("");}
       var arr=[];for(var i=0;i<ev.results.length;i++)arr.push({isFinal:ev.results[i].isFinal,transcript:ev.results[i][0].transcript});
-      var out=L.extractSpeech(arr,ev.resultIndex);
+      var out=tracker.feed(arr,ev.resultIndex);
+      if(!wantRecord){if(out.finalText){updateActiveText(out.finalText);saveNow();}return;}
+      retryN=0;if(lastError){lastError=null;banner("");}
       if(out.finalText)updateActiveText(out.finalText);
       liveTxt.textContent=out.interim?out.interim:(out.finalText?"…":"Đang nghe…");
     };
@@ -865,15 +932,16 @@
       else if(ev.error==="audio-capture")banner('<b>Không thấy micro.</b> Kiểm tra micro đang cắm/được chọn. Đang tự thử lại…');
     };
     r.onend=function(){
-      stopping=false;
+      stopping=false;tracker.reset();
       if(!wantRecord){setIdle();return;}
       var isErr=lastError&&lastError!=="no-speech"&&lastError!=="aborted";
       restartTimer=setTimeout(tryStart,isErr?Math.min(400*Math.pow(2,retryN),5000):200);
     };
     return r;
   }
-  function setLive(){recording=true;$("status").classList.add("live");$("statusTxt").textContent="Đang ghi";liveBar.classList.remove("idle");liveTxt.textContent="Đang nghe…";$("recLbl").textContent="Tạm dừng";$("btnRec").classList.remove("btn-rec");$("btnRec").classList.add("btn-stop");$("btnRec").querySelector(".ic").textContent="❚❚";$("btnSpeaker").disabled=false;$("btnStop").disabled=false;setActiveClass();}
-  function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();setActiveClass();}
+  function setLive(){recording=true;$("status").classList.add("live");$("statusTxt").textContent="Đang ghi";liveBar.classList.remove("idle");liveTxt.textContent="Đang nghe…";$("recLbl").textContent="Tạm dừng";$("btnRec").classList.remove("btn-rec");$("btnRec").classList.add("btn-stop");$("btnRec").querySelector(".ic").textContent="❚❚";$("btnSpeaker").disabled=false;$("btnStop").disabled=false;document.body.classList.add("sess");syncBar();setActiveClass();}
+  function syncBar(){$("mbRec").className="btn "+(recording?"btn-stop":"btn-rec");$("mbRecIc").textContent=recording?"❚❚":"●";$("mbRecLbl").textContent=recording?"Tạm dừng":"Ghi tiếp";$("mbSpk").disabled=!recording;}
+  function setIdle(){recording=false;$("status").classList.remove("live");$("statusTxt").textContent=elapsed>0?"Tạm dừng":"Sẵn sàng";liveBar.classList.add("idle");liveTxt.textContent=entries.length?"Đã tạm dừng. Nhấn để ghi tiếp.":'Chưa ghi. Nhấn "Bắt đầu ghi" để nói.';$("recLbl").textContent=elapsed>0?"Ghi tiếp":"Bắt đầu ghi";$("btnRec").classList.add("btn-rec");$("btnRec").classList.remove("btn-stop");$("btnRec").querySelector(".ic").textContent="●";$("btnSpeaker").disabled=true;$("btnStop").disabled=true;pauseTimer();syncBar();setActiveClass();}
 
   function startRec(){
     if(!SR){banner('<b>Trình duyệt không hỗ trợ nhận giọng nói.</b> Hãy mở bằng <b>Google Chrome</b> (máy tính hoặc Android). Anh vẫn gõ tay và xuất Word bình thường.');return;}
@@ -883,7 +951,7 @@
   }
   function flushActiveNow(){if(!pendingChunk)return;var e=entries.filter(function(x){return x.id===activeId;})[0];if(!e){pendingChunk="";return;}var n=nodeOf(e.id),ta=n?n.querySelector("[data-txt]"):null;flushPending(e,ta);}
   function pauseRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();}
-  function stopRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
+  function stopRec(){wantRecord=false;stopping=!!rec;clearTimeout(restartTimer);if(rec){try{rec.stop();}catch(e){}}flushActiveNow();setIdle();saveNow();document.body.classList.remove("sess");$("statusTxt").textContent="Đã kết thúc";toast("Đã kết thúc. Anh xuất Word hoặc sửa lại nội dung.");}
 
   function download(name,content,type){var blob=new Blob(["﻿"+content],{type:type});dl(name,blob);}
   function dlBytes(name,bytes,type){dl(name,new Blob([bytes],{type:type}));}
@@ -936,8 +1004,10 @@
     if(!confirm("Xóa toàn bộ nội dung để bắt đầu cuộc họp mới?\n(Bấm Hoàn tác để lấy lại.)"))return;
     pushUndo({type:"clear",entries:entries.slice(),elapsed:elapsed,activeId:activeId});
     entries=[];activeId=null;elapsed=0;timerBase=0;
+    document.body.classList.remove("sess");
     renderTimer();render();setIdle();saveNow();toast("Đã xóa hết — bấm Hoàn tác nếu lỡ tay.");
   });
+  [["mbRec","btnRec"],["mbSpk","btnSpeaker"],["mbKL","btnKL"],["mbPC","btnPC"]].forEach(function(p){$(p[0]).addEventListener("click",function(){$(p[1]).click();});});
   $("btnUndo").addEventListener("click",doUndo);
   $("search").addEventListener("input",applySearch);
   $("optCap").addEventListener("change",function(){autoCap=$("optCap").checked;save();});
@@ -953,7 +1023,7 @@
 
   if(!SR)banner('<b>Lưu ý:</b> trình duyệt hiện tại có thể không nhận giọng nói. Để dùng nói → text, hãy mở bằng <b>Google Chrome</b>. Anh vẫn gõ tay và xuất Word bình thường.');
   // ===== Tự kiểm tra phiên bản mới =====
-  var APP_VERSION="2.3";
+  var APP_VERSION="2.4";
   var VERSION_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/version.json";
   var PAGES_URL="https://neo-era.github.io/bien-ban-hop/";
   var RAW_HTML_URL="https://raw.githubusercontent.com/neo-era/bien-ban-hop/sub1/index.html";
