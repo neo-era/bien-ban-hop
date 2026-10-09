@@ -78,6 +78,8 @@ Khi sửa logic trong `index.html`, chạy lại `test_inline.js` để chắc k
 - Có thể thêm: chèn mục nghị quyết/kết luận riêng, đánh số điều, xuất PDF trực tiếp.
 
 ## 11. Nhật ký thay đổi
+- v2.8: Quốc hiệu – Tiêu ngữ căn giữa trang (Word/.doc/.txt); dòng "địa danh, ngày…" căn phải; bỏ tên công ty ở đầu; Tên đơn vị chuyển vào dòng
+  "Địa điểm: <Tên đơn vị>, <địa chỉ>" (`placeLine`, có bản sao trong docx.js; không lặp nếu địa chỉ đã chứa tên). Đã kiểm bằng Word thật (xuất PDF).
 - v2.7: Dấu câu — đọc lệnh "dấu phẩy/chấm/hỏi/chấm hỏi/chấm than/hai chấm/chấm phẩy", "xuống dòng"; tự thêm dấu
   chấm khi ngắt nghỉ (công tắc trong Tùy chọn nhận dạng); xuất Word/.txt/Sao chép tự viết hoa đầu câu + sửa khoảng
   trắng quanh dấu (không đụng số, URL, viết tắt). Chi tiết: mục 12 "Thiết kế E".

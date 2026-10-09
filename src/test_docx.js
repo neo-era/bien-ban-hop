@@ -43,8 +43,13 @@ test("thiếu tiêu đề vẫn tạo được, không lỗi", () => {
 
 test("có tblGrid trong bảng (hợp lệ OOXML cho điện thoại)", () => {
   const xml = D.buildDocumentXml(meta, entries);
-  assert.ok(xml.includes("<w:tblGrid>"), "bảng phải có tblGrid");
-  assert.ok((xml.match(/<w:gridCol/g) || []).length >= 4, "mỗi bảng 2 cột có gridCol");
+  const tbls = xml.split("<w:tbl>").slice(1);
+  assert.ok(tbls.length >= 1, "có ít nhất bảng khối ký");
+  for (const t of tbls) {
+    const grid = t.slice(0, t.indexOf("</w:tblGrid>"));
+    assert.ok(grid.includes("<w:tblGrid>"), "bảng nào cũng phải có tblGrid");
+    assert.ok((grid.match(/<w:gridCol/g) || []).length >= 2, "mỗi bảng có gridCol cho từng cột");
+  }
 });
 test("body kết thúc bằng paragraph trước sectPr (không phải bảng)", () => {
   const xml = D.buildDocumentXml(meta, entries);
@@ -107,4 +112,26 @@ test("dòng 'địa danh, ngày…' chỉ lấy Tỉnh/TP; Địa điểm giữ 
   assert.ok(xml.includes("Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026"));
   assert.ok(!xml.includes("Bến Thành, Thành phố Hồ Chí Minh, ngày"));
   assert.ok(xml.includes("Hẻm 1 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh"));
+});
+
+test("Quốc hiệu căn giữa trang (không nằm trong bảng 2 cột), không in tên công ty ở đầu", () => {
+  const xml = D.buildDocumentXml(meta, entries);
+  const head = xml.slice(0, xml.indexOf("BIÊN BẢN CUỘC HỌP"));
+  assert.ok(!head.includes("<w:tbl>"), "phần đầu không còn bảng");
+  assert.ok(/<w:jc w:val="center"\/>(?:(?!<\/w:p>).)*CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM/.test(head), "Quốc hiệu căn giữa");
+  assert.ok(/<w:jc w:val="center"\/>(?:(?!<\/w:p>).)*Độc lập - Tự do - Hạnh phúc/.test(head), "Tiêu ngữ căn giữa");
+  assert.ok(!head.includes("LAVIPCO"), "không in tên công ty ở phần đầu");
+});
+
+test("dòng địa danh, ngày tháng căn phải", () => {
+  const xml = D.buildDocumentXml({ title: "Họp", date: "2026-10-09", place: "Hẻm 1, Phường Bến Thành, Thành phố Hồ Chí Minh" }, entries);
+  assert.ok(/<w:jc w:val="right"\/>(?:(?!<\/w:p>).)*Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026/.test(xml));
+});
+
+test("dòng Địa điểm có tên đơn vị (docx)", () => {
+  const xml = D.buildDocumentXml({ company: "Công ty A", title: "Họp", date: "2026-10-09", place: "Hẻm 1, Phường Bến Thành, Thành phố Hồ Chí Minh" }, entries);
+  assert.ok(xml.includes("Công ty A, Hẻm 1, Phường Bến Thành, Thành phố Hồ Chí Minh"));
+  assert.ok(xml.includes("Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026"));
+  const only = D.buildDocumentXml({ company: "Công ty A", title: "Họp" }, entries);
+  assert.ok(only.includes("Địa điểm:") && only.includes("Công ty A"));
 });

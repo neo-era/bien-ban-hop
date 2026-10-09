@@ -646,3 +646,37 @@ test("capChunk: đoạn mở đầu bằng dấu phẩy thay dấu chấm cũ �
   assert.strictEqual(L.capChunk("Họp về tiến độ.", ", nhất là gói ba."), ", nhất là gói ba.");
   assert.strictEqual(L.capChunk("Họp về tiến độ", "? anh thấy sao"), "? Anh thấy sao");
 });
+
+// ---------- v2.8: Quốc hiệu căn giữa, bỏ tên công ty ở đầu ----------
+test("plainText/wordHtml: Quốc hiệu ở đầu, căn giữa, không in tên công ty", () => {
+  const meta = { company: "LAVIPCO", title: "T", date: "", time: "", place: "", chair: "", sec: "", att: "" };
+  const e = [{ id: "1", time: "08:00", speaker: "A", text: "x" }];
+  const t = L.plainText(meta, e), h = L.wordHtml(meta, e);
+  assert.ok(!t.slice(0, t.indexOf("BIÊN BẢN CUỘC HỌP")).includes("LAVIPCO") && !h.slice(0, h.indexOf("BIÊN BẢN CUỘC HỌP")).includes("LAVIPCO"));
+  assert.ok(/^\s*CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM/.test(t));
+  assert.ok(/text-align:center[^>]*>\s*<b[^>]*>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM/.test(h));
+  assert.ok(!h.slice(0, h.indexOf("BIÊN BẢN CUỘC HỌP")).includes("<table width=\"100%\""));
+});
+test("wordHtml: dòng địa danh, ngày tháng căn phải", () => {
+  const h = L.wordHtml({ title: "T", date: "2026-10-09", place: "Thành phố Hồ Chí Minh" }, [{ id: "1", time: "08:00", speaker: "A", text: "x" }]);
+  assert.ok(/\.sub\{[^}]*text-align:right/.test(h));
+});
+
+test("placeLine: Tên đơn vị đưa vào dòng Địa điểm", () => {
+  const c = "Công ty TNHH Kỹ Nghệ Lâm Việt Phát", p = "63/23A Liên Khu 16-18, Phường Bình Trị Đông, Thành phố Hồ Chí Minh";
+  assert.strictEqual(L.placeLine({ company: c, place: p }), c + ", " + p);
+  assert.strictEqual(L.placeLine({ company: c, place: "" }), c);
+  assert.strictEqual(L.placeLine({ company: "", place: p }), p);
+  assert.strictEqual(L.placeLine({ company: "lavipco", place: "Phòng họp LAVIPCO" }), "Phòng họp LAVIPCO");
+  assert.strictEqual(L.placeLine({ company: "  ", place: "  " }), "");
+  assert.strictEqual(L.placeLine(null), "");
+});
+test("plainText/wordHtml: dòng Địa điểm có tên đơn vị; dòng ngày vẫn chỉ Tỉnh/TP", () => {
+  const meta = { company: "Công ty A", title: "T", date: "2026-10-09", place: "Hẻm 1, Phường Bến Thành, Thành phố Hồ Chí Minh" };
+  const e = [{ id: "1", time: "08:00", speaker: "A", text: "x" }];
+  assert.ok(L.plainText(meta, e).includes("Địa điểm: Công ty A, Hẻm 1, Phường Bến Thành, Thành phố Hồ Chí Minh"));
+  const h = L.wordHtml(meta, e);
+  assert.ok(h.includes("<b>Địa điểm:</b> Công ty A, Hẻm 1"));
+  assert.ok(h.includes(">Thành phố Hồ Chí Minh, ngày 09 tháng 10 năm 2026<"));
+  assert.ok(L.plainText({ company: "Công ty A", title: "T" }, e).includes("Địa điểm: Công ty A"));
+});

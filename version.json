@@ -1,4 +1,4 @@
 {
-  "version": "2.7",
-  "notes": "Dấu chấm, phẩy: đọc \"dấu phẩy\", \"dấu chấm\", \"dấu hỏi\", \"xuống dòng\"… + tự thêm dấu chấm khi ngắt nghỉ; xuất Word tự viết hoa đầu câu"
+  "version": "2.8",
+  "notes": "Biên bản Word: Quốc hiệu căn giữa; địa danh, ngày tháng căn phải; Tên đơn vị đưa vào dòng Địa điểm"
 }

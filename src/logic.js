@@ -258,6 +258,13 @@
     if (/^GPS\s+-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/i.test(t)) return "";
     return t.replace(/\s*\(GPS\s+-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\)$/i, "").trim();
   }
+  // Dòng "Địa điểm:": Tên đơn vị đứng trước địa điểm (đã có trong địa điểm thì không lặp)
+  function placeLine(meta) {
+    var c = String((meta && meta.company) || "").trim(), p = String((meta && meta.place) || "").trim();
+    if (!c) return p;
+    if (!p) return c;
+    return p.toLowerCase().indexOf(c.toLowerCase()) >= 0 ? p : c + ", " + p;
+  }
   // Dòng "địa danh, ngày…" (NĐ 30): chỉ tên Tỉnh/TP. Địa điểm gõ tay không theo dạng địa chỉ → giữ như cũ.
   function datePlace(place) {
     var parts = String(place || "").split(",").map(function (x) { return x.trim(); }).filter(function (x) { return x; });
@@ -298,13 +305,12 @@
   function plainText(meta, entries) {
     meta = meta || {};
     var out = [], sec = sections(entries), lines = sec.notes;
-    if (meta.company) out.push(String(meta.company).toUpperCase());
-    out.push("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM");
-    out.push("Độc lập - Tự do - Hạnh phúc");
+    out.push("          CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"); // căn giữa (thụt lề) trong .txt
+    out.push("               Độc lập - Tự do - Hạnh phúc");
     out.push("", "BIÊN BẢN CUỘC HỌP", "");
     out.push("Nội dung: " + (meta.title || "(chưa đặt tiêu đề)"));
     if (meta.date || meta.time) out.push("Thời gian: " + (meta.time ? meta.time + " - " : "") + dmy(meta.date));
-    if (meta.place) out.push("Địa điểm: " + meta.place);
+    if (placeLine(meta)) out.push("Địa điểm: " + placeLine(meta));
     if (meta.chair) out.push("Chủ trì: " + meta.chair);
     if (meta.sec) out.push("Thư ký: " + meta.sec);
     if (meta.att) {
@@ -366,18 +372,16 @@
     return '' +
 '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
 '<style>@page{size:A4;margin:2cm 2cm 2cm 3cm} body{font-family:"Times New Roman",serif;font-size:13pt;color:#000;line-height:1.4}' +
-'h1{font-size:15pt;text-align:center;margin:0 0 4pt} .sub{text-align:center;font-style:italic;margin:0 0 14pt}' +
+'h1{font-size:15pt;text-align:center;margin:0 0 4pt} .sub{text-align:right;font-style:italic;margin:0 0 14pt}' +
 '.meta p{margin:0 0 3pt} .sec{font-weight:bold;margin:12pt 0 6pt}</style></head><body>' +
-'<table width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8pt"><tr>' +
-'<td width="46%" align="center" valign="top">' + (meta.company ? '<b style="text-transform:uppercase">' + esc(meta.company) + '</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:110px;font-size:2pt">&#160;</td></tr></table>' : '') + '</td>' +
-'<td width="54%" align="center" valign="top"><b style="font-size:12pt;white-space:nowrap">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b><table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:150px;font-size:2pt">&#160;</td></tr></table></td>' +
-'</tr></table>' +
+'<div style="text-align:center;margin:0 0 12pt"><b style="font-size:13pt;white-space:nowrap">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b>' +
+'<table align="center" cellspacing="0" cellpadding="0"><tr><td style="border-top:1.2pt solid #000;width:150px;font-size:2pt">&#160;</td></tr></table></div>' +
 '<h1>BIÊN BẢN CUỘC HỌP</h1>' +
 '<p class="sub">' + esc(meta.place ? datePlace(meta.place) + ", " : "") + esc(dmy(meta.date)) + '</p>' +
 '<div class="meta">' +
 '<p><b>Nội dung họp:</b> ' + esc(meta.title || "(chưa đặt tiêu đề)") + '</p>' +
 ((meta.date || meta.time) ? '<p><b>Thời gian:</b> ' + esc(meta.time ? meta.time + " - " : "") + esc(dmy(meta.date)) + '</p>' : '') +
-(meta.place ? '<p><b>Địa điểm:</b> ' + esc(meta.place) + '</p>' : '') +
+(placeLine(meta) ? '<p><b>Địa điểm:</b> ' + esc(placeLine(meta)) + '</p>' : '') +
 (meta.chair ? '<p><b>Chủ trì:</b> ' + esc(meta.chair) + '</p>' : '') +
 (meta.sec ? '<p><b>Thư ký:</b> ' + esc(meta.sec) + '</p>' : '') +
 (attHtml ? '<p><b>Thành phần tham dự:</b></p>' + attHtml : '') +
@@ -445,7 +449,7 @@
   var api = { fmtTime: fmtTime, dmy: dmy, esc: esc, appendText: appendText,
     extractSpeech: extractSpeech, createSpeechTracker: createSpeechTracker,
     checkFix: checkFix, provinceName: provinceName, wardName: wardName, parsePhoton: parsePhoton,
-    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace,
+    parseOverpass: parseOverpass, formatPlace: formatPlace, cleanPlace: cleanPlace, datePlace: datePlace, placeLine: placeLine,
     voicePunct: voicePunct, autoPeriod: autoPeriod, tidyText: tidyText, capChunk: capChunk, bodyLines: bodyLines, fileStem: fileStem,
     entryHead: entryHead, plainText: plainText, wordHtml: wordHtml,
     autoCapitalize: autoCapitalize, parseDict: parseDict, applyDict: applyDict,

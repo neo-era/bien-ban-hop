@@ -18,6 +18,14 @@
     return parts.length > 1 && /^(thành phố|tỉnh)\s/i.test(last) ? last : parts.join(", ");
   }
 
+  // Dòng "Địa điểm:" — giống placeLine trong logic.js;: Tên đơn vị đứng trước địa điểm (đã có trong địa điểm thì không lặp)
+  function placeLine(meta) {
+    var c = String((meta && meta.company) || "").trim(), p = String((meta && meta.place) || "").trim();
+    if (!c) return p;
+    if (!p) return c;
+    return p.toLowerCase().indexOf(c.toLowerCase()) >= 0 ? p : c + ", " + p;
+  }
+
   // ---- định dạng ngày ----
   function dmy(iso) {
     if (!iso || typeof iso !== "string") return "";
@@ -106,25 +114,22 @@
     var sec = sections(entries), lines = sec.notes;
     var b = [];
 
-    // ===== Header: công ty (trái) | Quốc hiệu - Tiêu ngữ (phải) =====
-    var leftCell = para(meta.company ? run(meta.company, { b: true, caps: true }) : "", { align: "center", spaceAfter: 0 });
-    var rightCell =
-      para(run("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", { b: true, sz: 24 }), { align: "center", spaceAfter: 0 }) +
-      para(run("Độc lập - Tự do - Hạnh phúc", { b: true }), { align: "center", spaceAfter: 0 }) +
-      para(run("————————————", {}), { align: "center", spaceAfter: 0 });
-    b.push(twoColTable(leftCell, rightCell, 2200, 2800));
+    // ===== Header: Quốc hiệu - Tiêu ngữ căn giữa trang (anh chọn bỏ tên công ty ở đầu) =====
+    b.push(para(run("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", { b: true, sz: 26 }), { align: "center", spaceAfter: 0 }));
+    b.push(para(run("Độc lập - Tự do - Hạnh phúc", { b: true }), { align: "center", spaceAfter: 0 }));
+    b.push(para(run("————————————", {}), { align: "center", spaceAfter: 0 }));
     b.push(emptyPara());
 
     // ===== Tiêu đề =====
     b.push(para(run("BIÊN BẢN CUỘC HỌP", { b: true, sz: 30 }), { align: "center", spaceAfter: 60 }));
     var sub = (meta.place ? datePlace(meta.place) + ", " : "") + dmy(meta.date);
-    if (sub.trim()) b.push(para(run(sub, { i: true }), { align: "center", spaceAfter: 200 }));
+    if (sub.trim()) b.push(para(run(sub, { i: true }), { align: "right", spaceAfter: 200 }));
 
     // ===== Thông tin =====
     function label(lbl, val) { return para(run(lbl + " ", { b: true }) + run(val, {}), { spaceAfter: 100 }); }
     b.push(label("Nội dung họp:", meta.title || "(chưa đặt tiêu đề)"));
     if (meta.date || meta.time) b.push(label("Thời gian:", (meta.time ? meta.time + " - " : "") + dmy(meta.date)));
-    if (meta.place) b.push(label("Địa điểm:", meta.place));
+    if (placeLine(meta)) b.push(label("Địa điểm:", placeLine(meta)));
     if (meta.chair) b.push(label("Chủ trì:", meta.chair));
     if (meta.sec) b.push(label("Thư ký:", meta.sec));
     if (meta.att) {
